@@ -20,4 +20,54 @@ public class Booking {
     private LocalDate date = LocalDate.now();
     @Column(name = "status", nullable = false)
     private String status;
+
+
+    public Booking() {
+    }
+
+    public Booking(User creator, float dayDuration, LocalDate date, String status) {
+        this.creator = creator;
+        this.dayDuration = dayDuration;
+        this.date = date;
+        this.status = status;
+    }
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public User getCreator() {
+        return creator;
+    }
+
+    public void setCreator(User creator) {
+        this.creator = creator;
+    }
+
+    public float getDayDuration() {
+        return dayDuration;
+    }
+
+    public void setDayDuration(float dayDuration) {
+        this.dayDuration = dayDuration;
+    }
+
+    public LocalDate getDate() {
+        return date;
+    }
+
+    public void setDate(LocalDate date) {
+        this.date = date;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
 }
