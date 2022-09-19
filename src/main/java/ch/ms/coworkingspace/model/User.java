@@ -2,7 +2,7 @@ package ch.ms.coworkingspace.model;
 
 import javax.persistence.*;
 
-@Entity(name = "USER")
+@Entity(name = "MEMBER")
 public class User {
 
     @Id
