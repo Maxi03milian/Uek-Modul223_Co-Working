@@ -1,0 +1,7 @@
+# file: ~/.gitignore_global
+.DS_Store
+.idea
+*mysql_db_data
+
+/docker-compose.yml
+/target
