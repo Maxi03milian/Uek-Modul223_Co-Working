@@ -29,7 +29,7 @@ public class UserService {
             User user = userRepository.findById(id).get();
             return new ResponseEntity(user, HttpStatus.OK);
         }else{
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity("User with given ID not found", HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -45,14 +45,14 @@ public class UserService {
             userRepository.save(userToUpdate);
             return new ResponseEntity(userToUpdate, HttpStatus.OK);
         }else{
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity("User with given ID not found", HttpStatus.BAD_REQUEST);
         }
     }
 
     public ResponseEntity<User> createUser(User user) {
         Optional<User> userOptional = userRepository.findByEmail(user.getEmail());
         if(userOptional.isPresent()) {
-            return new ResponseEntity(HttpStatus.CONFLICT);
+            return new ResponseEntity("Email already used by different User", HttpStatus.CONFLICT);
         }else{
             userRepository.save(user);
             return new ResponseEntity(user, HttpStatus.OK);
@@ -65,7 +65,7 @@ public class UserService {
             userRepository.deleteById(id);
             return new ResponseEntity(HttpStatus.OK);
         }else{
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity("User with given ID does not exist", HttpStatus.BAD_REQUEST);
         }
     }
 }

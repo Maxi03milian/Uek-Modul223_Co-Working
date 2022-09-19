@@ -3,9 +3,7 @@ package ch.ms.coworkingspace.controller;
 import ch.ms.coworkingspace.model.User;
 import ch.ms.coworkingspace.service.UserService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -24,10 +22,26 @@ public class UserController {
         return userService.getAllUsers();
     }
 
-    @GetMapping("/id")
-    public ResponseEntity<User> getUserById(Long id){
+    @GetMapping("/{id}")
+    public ResponseEntity<User> getUserById(@PathVariable Long id){
         return userService.getUserById(id);
     }
+
+    @PostMapping("/create")
+    public ResponseEntity<User> createUser(@RequestBody User user){
+        return userService.createUser(user);
+    }
+
+    @PutMapping("/update/{id}")
+    public ResponseEntity<User> updateUserById(@PathVariable Long id, @RequestBody User user){
+        return userService.updateUserById(id, user);
+    }
+
+    @DeleteMapping("/delete/{id}")
+    public ResponseEntity<User> deleteUserById(@PathVariable Long id){
+        return userService.deleteUserById(id);
+    }
+
 
 
 
