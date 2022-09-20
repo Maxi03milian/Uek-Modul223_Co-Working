@@ -1,6 +1,7 @@
 package ch.ms.coworkingspace.controller;
 
 import ch.ms.coworkingspace.model.Booking;
+import ch.ms.coworkingspace.model.Member;
 import ch.ms.coworkingspace.service.BookingService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -9,6 +10,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.UUID;
 
 
@@ -60,8 +63,8 @@ public class BookingController {
     )
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Booking> createBooking(@RequestBody Booking booking){
-        return bookingService.createBooking(booking);
+    public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestBody Member member, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
+        return bookingService.createBooking(booking, token);
     }
 
     @Operation(

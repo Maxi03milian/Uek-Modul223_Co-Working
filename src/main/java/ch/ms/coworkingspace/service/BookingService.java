@@ -1,12 +1,18 @@
 package ch.ms.coworkingspace.service;
 
 import ch.ms.coworkingspace.model.Booking;
+import ch.ms.coworkingspace.model.Member;
 import ch.ms.coworkingspace.repository.BookingRepository;
 import ch.ms.coworkingspace.repository.MemberRepository;
+import ch.ms.coworkingspace.security.JwtServiceHMAC;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Service
@@ -14,10 +20,12 @@ public class BookingService {
 
     BookingRepository bookingRepository;
     MemberRepository memberRepository;
+    JwtServiceHMAC jwtService;
 
-    public BookingService(BookingRepository bookingRepository, MemberRepository memberRepository) {
+    public BookingService(BookingRepository bookingRepository, MemberRepository memberRepository, JwtServiceHMAC jwtService) {
         this.bookingRepository = bookingRepository;
         this.memberRepository = memberRepository;
+        this.jwtService = jwtService;
     }
 
 
@@ -46,12 +54,22 @@ public class BookingService {
         return new ResponseEntity(bookingRepository.findAllByStatus(status), HttpStatus.OK);
     }
 
-    //createBooking (user auth)
-    //TODO: add user to creator field
-    public ResponseEntity createBooking(Booking booking) {
+    public ResponseEntity createBooking(Booking booking, String token) throws GeneralSecurityException, IOException {
+        token = token.substring(7);
+        DecodedJWT decode = jwtService.verifyJwt(token, true);
+        String userId = decode.getClaim("user_id").asString();
+        Member member = memberRepository.findById(UUID.fromString(userId)).get();
+        booking.setStatus("PENDING");
+        booking.setCreator(member);
+
+        if(booking.getDate().isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("Invalid date, date in the past in not possible");
+        }
+
         bookingRepository.save(booking);
         return new ResponseEntity(booking, HttpStatus.OK);
     }
+
 
     //updateBooking (Full booking update. Intended for admin emergency use)
     public ResponseEntity updateBooking(UUID id, Booking booking) {
