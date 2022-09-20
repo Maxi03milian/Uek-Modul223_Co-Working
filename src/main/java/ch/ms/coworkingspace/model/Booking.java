@@ -2,7 +2,6 @@ package ch.ms.coworkingspace.model;
 
 import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.Type;
-import org.hibernate.type.LocalDateType;
 
 import javax.persistence.*;
 import java.time.LocalDate;
@@ -19,7 +18,7 @@ public class Booking {
     private UUID id = UUID.randomUUID();
     @ManyToOne
     @JoinColumn(name = "creator", referencedColumnName = "id")
-    private User creator;
+    private Member creator;
     @Column(name = "day_duration", nullable = false)
     private float dayDuration;
     @Column(name = "date", nullable = false)
@@ -31,7 +30,7 @@ public class Booking {
     public Booking() {
     }
 
-    public Booking(User creator, float dayDuration, LocalDate date, String status) {
+    public Booking(Member creator, float dayDuration, LocalDate date, String status) {
         this.creator = creator;
         this.dayDuration = dayDuration;
         this.date = date;
@@ -45,11 +44,11 @@ public class Booking {
         this.id = id;
     }
 
-    public User getCreator() {
+    public Member getCreator() {
         return creator;
     }
 
-    public void setCreator(User creator) {
+    public void setCreator(Member creator) {
         this.creator = creator;
     }
 

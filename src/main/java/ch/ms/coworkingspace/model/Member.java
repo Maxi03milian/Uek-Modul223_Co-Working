@@ -7,7 +7,7 @@ import javax.persistence.*;
 import java.util.UUID;
 
 @Entity(name = "member")
-public class User {
+public class Member {
 
     @Id
     @GeneratedValue(generator = "UUID")
@@ -28,10 +28,10 @@ public class User {
     private String role = "MEMBER";
 
 
-    public User() {
+    public Member() {
     }
 
-    public User(String name, String lastname, String email, String password, String role) {
+    public Member(String name, String lastname, String email, String password, String role) {
         this.name = name;
         this.lastname = lastname;
         this.email = email;

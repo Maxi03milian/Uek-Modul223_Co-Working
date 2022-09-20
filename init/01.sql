@@ -53,8 +53,8 @@ VALUES (
     (
         'e1eec954-6ef4-4926-8183-7575af189f2a',
         'Johannes',
-        'Höffliger',
-        'johannes.höffliger@gmail.com',
+        'Hoeffliger',
+        'johannes.hoeffliger@gmail.com',
         'test1234',
         'MEMBER'
     );

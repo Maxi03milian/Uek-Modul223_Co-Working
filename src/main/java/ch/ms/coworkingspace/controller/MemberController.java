@@ -1,25 +1,25 @@
 package ch.ms.coworkingspace.controller;
 
-import ch.ms.coworkingspace.model.User;
-import ch.ms.coworkingspace.service.UserService;
+import ch.ms.coworkingspace.model.Member;
+import ch.ms.coworkingspace.service.MemberService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/users")
 @Tag(name = "Users", description = "User management endpoints")
-public class UserController {
+public class MemberController {
 
-    UserService userService;
+    MemberService memberService;
 
-    public UserController(UserService userService) {
-        this.userService = userService;
+    public MemberController(MemberService memberService) {
+        this.memberService = memberService;
     }
 
     @Operation(
@@ -28,8 +28,9 @@ public class UserController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @GetMapping
-    public ResponseEntity<User> getAllUsers(){
-        return userService.getAllUsers();
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Member> getAllUsers(){
+        return memberService.getAllUsers();
     }
 
     @Operation(
@@ -38,8 +39,9 @@ public class UserController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @GetMapping("/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable UUID id){
-        return userService.getUserById(id);
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Member> getUserById(@PathVariable UUID id){
+        return memberService.getUserById(id);
     }
 
     @Operation(
@@ -47,9 +49,10 @@ public class UserController {
             description = "Creates a new user in database.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public ResponseEntity<User> createUser(@RequestBody User user){
-        return userService.createUser(user);
+    public ResponseEntity<Member> createUser(@RequestBody Member member){
+        return memberService.createUser(member);
     }
 
     @Operation(
@@ -57,9 +60,10 @@ public class UserController {
             description = "Update information from a specific user by ID.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<User> updateUserById(@PathVariable UUID id, @RequestBody User user){
-        return userService.updateUserById(id, user);
+    public ResponseEntity<Member> updateUserById(@PathVariable UUID id, @RequestBody Member member){
+        return memberService.updateUserById(id, member);
     }
 
     @Operation(
@@ -68,8 +72,9 @@ public class UserController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @DeleteMapping("/{id}")
-    public ResponseEntity<User> deleteUserById(@PathVariable UUID id){
-        return userService.deleteUserById(id);
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Member> deleteUserById(@PathVariable UUID id){
+        return memberService.deleteUserById(id);
     }
 
 

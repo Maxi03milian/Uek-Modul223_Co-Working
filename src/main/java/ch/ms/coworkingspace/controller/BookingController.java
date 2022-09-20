@@ -3,6 +3,7 @@ package ch.ms.coworkingspace.controller;
 import ch.ms.coworkingspace.model.Booking;
 import ch.ms.coworkingspace.service.BookingService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -28,6 +29,7 @@ public class BookingController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> getAllBookings(@RequestParam(value = "status", required = false) String status, @RequestParam(value = "userid", required = false) UUID userid){
         if(status != null && userid != null){
             return bookingService.getBookingsByStatusAndUserId(status, userid);
@@ -46,6 +48,7 @@ public class BookingController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> getBookingById(@PathVariable UUID id){
         return bookingService.getBookingById(id);
     }
@@ -56,6 +59,7 @@ public class BookingController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking){
         return bookingService.createBooking(booking);
     }
@@ -66,6 +70,7 @@ public class BookingController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> updateBooking(@PathVariable UUID id, @RequestBody Booking booking){
         return bookingService.updateBooking(id, booking);
     }
@@ -76,6 +81,7 @@ public class BookingController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @PutMapping("/status/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking){
         return bookingService.updateBookingStatus(id, booking);
     }
@@ -86,6 +92,7 @@ public class BookingController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> deleteBooking(@PathVariable UUID id){
         return bookingService.deleteBooking(id);
     }

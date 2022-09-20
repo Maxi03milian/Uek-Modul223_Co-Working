@@ -2,7 +2,7 @@ package ch.ms.coworkingspace.service;
 
 import ch.ms.coworkingspace.model.Booking;
 import ch.ms.coworkingspace.repository.BookingRepository;
-import ch.ms.coworkingspace.repository.UserRepository;
+import ch.ms.coworkingspace.repository.MemberRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -13,11 +13,11 @@ import java.util.UUID;
 public class BookingService {
 
     BookingRepository bookingRepository;
-    UserRepository userRepository;
+    MemberRepository memberRepository;
 
-    public BookingService(BookingRepository bookingRepository, UserRepository userRepository) {
+    public BookingService(BookingRepository bookingRepository, MemberRepository memberRepository) {
         this.bookingRepository = bookingRepository;
-        this.userRepository = userRepository;
+        this.memberRepository = memberRepository;
     }
 
 
@@ -33,7 +33,7 @@ public class BookingService {
 
     //getBooking by user
     public ResponseEntity getBookingByUser(UUID id) {
-        boolean userExists = userRepository.existsById(id);
+        boolean userExists = memberRepository.existsById(id);
         if(userExists){
             return new ResponseEntity(bookingRepository.findByCreatorId(id), HttpStatus.OK);
         }else{
@@ -95,7 +95,7 @@ public class BookingService {
 
 
     public ResponseEntity<Booking> getBookingsByStatusAndUserId(String status, UUID userid) {
-        boolean userExists = userRepository.existsById(userid);
+        boolean userExists = memberRepository.existsById(userid);
         if(userExists){
             return new ResponseEntity(bookingRepository.findAllByStatusAndCreatorId(status, userid), HttpStatus.OK);
         }else{
