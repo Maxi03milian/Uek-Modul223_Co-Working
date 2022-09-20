@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class UserService {
@@ -23,7 +24,7 @@ public class UserService {
         return new ResponseEntity(userList, HttpStatus.OK);
     }
 
-    public ResponseEntity<User> getUserById(Long id) {
+    public ResponseEntity<User> getUserById(UUID id) {
         boolean userExists = userRepository.existsById(id);
         if(userExists){
             User user = userRepository.findById(id).get();
@@ -33,7 +34,7 @@ public class UserService {
         }
     }
 
-    public ResponseEntity<User> updateUserById(Long id, User user) {
+    public ResponseEntity<User> updateUserById(UUID id, User user) {
         boolean userExists = userRepository.existsById(id);
         if(userExists){
             User userToUpdate = userRepository.findById(id).get();
@@ -59,7 +60,7 @@ public class UserService {
         }
     }
 
-    public ResponseEntity<User> deleteUserById(Long id) {
+    public ResponseEntity<User> deleteUserById(UUID id) {
         boolean userExists = userRepository.existsById(id);
         if(userExists){
             userRepository.deleteById(id);

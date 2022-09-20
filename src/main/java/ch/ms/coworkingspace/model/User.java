@@ -1,13 +1,20 @@
 package ch.ms.coworkingspace.model;
 
-import javax.persistence.*;
+import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.Type;
 
-@Entity(name = "MEMBER")
+import javax.persistence.*;
+import java.util.UUID;
+
+@Entity(name = "member")
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private Long id;
+    @GeneratedValue(generator = "UUID")
+    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
+    @Column(name = "id", updatable = false, nullable = false)
+    @Type(type = "org.hibernate.type.UUIDCharType")
+    private UUID id = UUID.randomUUID();
 
     @Column(name = "name", nullable = false)
     private String name;
@@ -32,11 +39,11 @@ public class User {
         this.role = role;
     }
 
-    public Long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 

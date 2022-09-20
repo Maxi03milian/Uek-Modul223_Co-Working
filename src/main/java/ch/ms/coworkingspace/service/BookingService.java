@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class BookingService {
 
@@ -25,7 +27,7 @@ public class BookingService {
     }
 
     //getBooking by user
-    public ResponseEntity getBookingByUser(Long id) {
+    public ResponseEntity getBookingByUser(UUID id) {
         boolean userExists = userRepository.existsById(id);
         if(userExists){
             return new ResponseEntity(bookingRepository.findByCreatorId(id), HttpStatus.OK);
@@ -47,7 +49,7 @@ public class BookingService {
     }
 
     //updateBooking (Full booking update. Intended for admin emergency use)
-    public ResponseEntity updateBooking(Long id, Booking booking) {
+    public ResponseEntity updateBooking(UUID id, Booking booking) {
         boolean bookingExists = bookingRepository.existsById(id);
         if(bookingExists){
             Booking bookingToUpdate = bookingRepository.findById(id).get();
@@ -63,7 +65,7 @@ public class BookingService {
     }
 
     //updateBookingStatus
-    public ResponseEntity updateBookingStatus(Long id, Booking booking) {
+    public ResponseEntity updateBookingStatus(UUID id, Booking booking) {
         boolean bookingExists = bookingRepository.existsById(id);
         if(bookingExists){
             Booking bookingToUpdate = bookingRepository.findById(id).get();
@@ -76,7 +78,7 @@ public class BookingService {
     }
 
     //deleteBooking by id
-    public ResponseEntity deleteBooking(Long id) {
+    public ResponseEntity deleteBooking(UUID id) {
         boolean bookingExists = bookingRepository.existsById(id);
         if(bookingExists){
             bookingRepository.deleteById(id);

@@ -8,9 +8,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import java.util.UUID;
+
 
 @RestController
-@RequestMapping("/booking")
+@RequestMapping("/bookings")
 @Tag(name = "Bookings", description = "Booking management endpoints")
 public class BookingController {
 
@@ -25,7 +27,7 @@ public class BookingController {
             description = "Loads all bookings from the database.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @GetMapping("/all")
+    @GetMapping
     public ResponseEntity<Booking> getAllBookings(){
         return bookingService.getBookings();
     }
@@ -35,8 +37,8 @@ public class BookingController {
             description = "Loads one specific booking by ID from the creater from the database.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @GetMapping("/user/{id}")
-    public ResponseEntity<Booking> getBookingByUser(@PathVariable Long id){
+    @GetMapping("/{id}")
+    public ResponseEntity<Booking> getBookingByUser(@PathVariable UUID id){
         return bookingService.getBookingByUser(id);
     }
 
@@ -55,7 +57,7 @@ public class BookingController {
             description = "Creates a new booking in database",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @PostMapping("/create")
+    @PostMapping
     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking){
         return bookingService.createBooking(booking);
     }
@@ -65,8 +67,8 @@ public class BookingController {
             description = "Update information from a specific booking by ID.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @PutMapping("/update/{id}")
-    public ResponseEntity<Booking> updateBooking(@PathVariable Long id, @RequestBody Booking booking){
+    @PutMapping("/{id}")
+    public ResponseEntity<Booking> updateBooking(@PathVariable UUID id, @RequestBody Booking booking){
         return bookingService.updateBooking(id, booking);
     }
 
@@ -75,8 +77,8 @@ public class BookingController {
             description = "Update information from a specific booking by ID.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @PutMapping("/update/status/{id}")
-    public ResponseEntity<Booking> updateBookingStatus(@PathVariable Long id, @RequestBody Booking booking){
+    @PutMapping("/status/{id}")
+    public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking){
         return bookingService.updateBookingStatus(id, booking);
     }
 
@@ -85,8 +87,8 @@ public class BookingController {
             description = "Delete a booking by ID.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Booking> deleteBooking(@PathVariable Long id){
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Booking> deleteBooking(@PathVariable UUID id){
         return bookingService.deleteBooking(id);
     }
 

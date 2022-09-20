@@ -1,16 +1,22 @@
 package ch.ms.coworkingspace.model;
 
+import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.Type;
 import org.hibernate.type.LocalDateType;
 
 import javax.persistence.*;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Entity(name = "BOOKING")
 public class Booking {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private Long id;
+    @GeneratedValue(generator = "UUID")
+    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
+    @Column(name = "id", updatable = false, nullable = false)
+    @Type(type = "org.hibernate.type.UUIDCharType")
+    private UUID id = UUID.randomUUID();
     @ManyToOne
     @JoinColumn(name = "creator", referencedColumnName = "id")
     private User creator;
@@ -31,11 +37,11 @@ public class Booking {
         this.date = date;
         this.status = status;
     }
-    public Long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 

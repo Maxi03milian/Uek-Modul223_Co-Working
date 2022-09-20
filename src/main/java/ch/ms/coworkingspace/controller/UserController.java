@@ -9,9 +9,10 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/user")
+@RequestMapping("/users")
 @Tag(name = "Users", description = "User management endpoints")
 public class UserController {
 
@@ -26,7 +27,7 @@ public class UserController {
             description = "Loads all users from the database.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @GetMapping("/all")
+    @GetMapping
     public ResponseEntity<User> getAllUsers(){
         return userService.getAllUsers();
     }
@@ -37,7 +38,7 @@ public class UserController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @GetMapping("/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable Long id){
+    public ResponseEntity<User> getUserById(@PathVariable UUID id){
         return userService.getUserById(id);
     }
 
@@ -46,7 +47,7 @@ public class UserController {
             description = "Creates a new user in database.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @PostMapping("/create")
+    @PostMapping
     public ResponseEntity<User> createUser(@RequestBody User user){
         return userService.createUser(user);
     }
@@ -56,8 +57,8 @@ public class UserController {
             description = "Update information from a specific user by ID.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @PutMapping("/update/{id}")
-    public ResponseEntity<User> updateUserById(@PathVariable Long id, @RequestBody User user){
+    @PutMapping("/{id}")
+    public ResponseEntity<User> updateUserById(@PathVariable UUID id, @RequestBody User user){
         return userService.updateUserById(id, user);
     }
 
@@ -66,8 +67,8 @@ public class UserController {
             description = "Delete a user by ID.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @DeleteMapping("/delete/{id}")
-    public ResponseEntity<User> deleteUserById(@PathVariable Long id){
+    @DeleteMapping("/{id}")
+    public ResponseEntity<User> deleteUserById(@PathVariable UUID id){
         return userService.deleteUserById(id);
     }
 
