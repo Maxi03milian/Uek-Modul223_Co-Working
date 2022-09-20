@@ -48,7 +48,7 @@ You can run the springboot application in the IDE of your choice. The applicatio
 ## Important Information
 
 ### Database structure
-The database was designed with the expectation that the Admin will handle any assignement of bookings to specific available locations.
+The database was designed with the assumption that the bookable locations are actual office workstations. For that reason the admin will handle any assignement of bookings to specific available Seats. 
 Therefore, the database <b>does not feature a Table for the location of bookings. </b>
 
 ### Client Demo (Postman)
