@@ -3,6 +3,8 @@ package ch.ms.coworkingspace.controller;
 import ch.ms.coworkingspace.model.Member;
 import ch.ms.coworkingspace.security.JwtServiceHMAC;
 import ch.ms.coworkingspace.service.MemberService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +27,11 @@ public class AuthController {
         this.memberService = memberService;
     }
 
+    @Operation(
+            summary = "Log in",
+            description = "Logs in a user and returns a JWT token.",
+            security = {@SecurityRequirement(name = "JWT Auth")}
+    )
     @PostMapping("/login")
     public ResponseEntity login(@RequestBody Member user) {
         ArrayList<String> scopes = new ArrayList<String>();
@@ -44,8 +51,15 @@ public class AuthController {
         return new ResponseEntity(jwt, HttpStatus.OK);
     }
 
-   /* @PostMapping("/register")
+    @Operation(
+            summary = "Register",
+            description = "Registers a new user.",
+            security = {@SecurityRequirement(name = "JWT Auth")}
+    )
+    @PostMapping("/register")
     public ResponseEntity register(@RequestBody Member member){
+        return memberService.createUser(member);
+    }
 
-    }*/
+
 }

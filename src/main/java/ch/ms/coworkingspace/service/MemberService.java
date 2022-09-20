@@ -70,6 +70,8 @@ public class MemberService {
         if(userOptional.isPresent()) {
             return new ResponseEntity("Email already used by different User", HttpStatus.CONFLICT);
         }else{
+            member.setRole("MEMBER");
+            member.setId(UUID.randomUUID());
             memberRepository.save(member);
             return new ResponseEntity(member, HttpStatus.OK);
         }
