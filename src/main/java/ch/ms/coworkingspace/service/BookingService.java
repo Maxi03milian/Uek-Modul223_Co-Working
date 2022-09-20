@@ -26,6 +26,11 @@ public class BookingService {
         return new ResponseEntity(bookingRepository.findAll(), HttpStatus.OK);
     }
 
+    //getbooking by id
+    public ResponseEntity getBookingById(UUID id) {
+        return new ResponseEntity(bookingRepository.findById(id), HttpStatus.OK);
+    }
+
     //getBooking by user
     public ResponseEntity getBookingByUser(UUID id) {
         boolean userExists = userRepository.existsById(id);
@@ -89,5 +94,12 @@ public class BookingService {
     }
 
 
-
+    public ResponseEntity<Booking> getBookingsByStatusAndUserId(String status, UUID userid) {
+        boolean userExists = userRepository.existsById(userid);
+        if(userExists){
+            return new ResponseEntity(bookingRepository.findAllByStatusAndCreatorId(status, userid), HttpStatus.OK);
+        }else{
+            return new ResponseEntity("User with given ID does not exist", HttpStatus.NOT_FOUND);
+        }
+    }
 }

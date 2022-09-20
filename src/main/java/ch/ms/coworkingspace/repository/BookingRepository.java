@@ -12,4 +12,6 @@ import java.util.UUID;
 public interface BookingRepository extends CrudRepository<Booking, UUID> {
     Optional<Booking> findByCreatorId(UUID id);
     List<Booking> findAllByStatus(String status);
+
+    List<Booking> findAllByStatusAndCreatorId(String status, UUID userid);
 }

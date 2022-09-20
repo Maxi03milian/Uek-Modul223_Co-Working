@@ -28,18 +28,16 @@ public class BookingController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @GetMapping
-    public ResponseEntity<Booking> getAllBookings(){
-        return bookingService.getBookings();
-    }
-
-    @Operation(
-            summary = "Get one specific booking by user ID",
-            description = "Loads one specific booking by ID from the creater from the database.",
-            security = {@SecurityRequirement(name = "JWT Auth")}
-    )
-    @GetMapping("/{id}")
-    public ResponseEntity<Booking> getBookingByUser(@PathVariable UUID id){
-        return bookingService.getBookingByUser(id);
+    public ResponseEntity<Booking> getAllBookings(@RequestParam(value = "status", required = false) String status, @RequestParam(value = "userid", required = false) UUID userid){
+        if(status != null && userid != null){
+            return bookingService.getBookingsByStatusAndUserId(status, userid);
+        } else if(status != null){
+            return bookingService.getBookingByStatus(status);
+        } else if(userid != null){
+            return bookingService.getBookingByUser(userid);
+        } else {
+            return bookingService.getBookings();
+        }
     }
 
     @Operation(
@@ -47,9 +45,9 @@ public class BookingController {
             description = "Gets all bookings by status in database.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @GetMapping("/{status}")
-    public ResponseEntity<Booking> getBookingByStatus(@PathVariable String status){
-        return bookingService.getBookingByStatus(status);
+    @GetMapping("/{id}")
+    public ResponseEntity<Booking> getBookingById(@PathVariable UUID id){
+        return bookingService.getBookingById(id);
     }
 
     @Operation(
