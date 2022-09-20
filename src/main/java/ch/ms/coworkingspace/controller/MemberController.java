@@ -1,7 +1,15 @@
 package ch.ms.coworkingspace.controller;
 
 import ch.ms.coworkingspace.model.Member;
+import ch.ms.coworkingspace.security.JwtServiceHMAC;
 import ch.ms.coworkingspace.service.MemberService;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.interfaces.Claim;
+import com.auth0.jwt.interfaces.DecodedJWT;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -9,6 +17,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -18,8 +29,11 @@ public class MemberController {
 
     MemberService memberService;
 
-    public MemberController(MemberService memberService) {
+    JwtServiceHMAC jwtService;
+
+    public MemberController(MemberService memberService, JwtServiceHMAC jwtService) {
         this.memberService = memberService;
+        this.jwtService = jwtService;
     }
 
     @Operation(
@@ -60,10 +74,10 @@ public class MemberController {
             description = "Update information from a specific user by ID.",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
-    @PreAuthorize("hasRole('ADMIN')")
+
     @PutMapping("/{id}")
-    public ResponseEntity<Member> updateUserById(@PathVariable UUID id, @RequestBody Member member){
-        return memberService.updateUserById(id, member);
+    public ResponseEntity<Member> updateUserById(@PathVariable UUID id, @RequestBody Member member, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
+        return memberService.updateUserById(id, member, token);
     }
 
     @Operation(
