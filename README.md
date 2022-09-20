@@ -42,10 +42,18 @@ You can run the springboot application in the IDE of your choice. The applicatio
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+### Startup info
+
+The application will start with the following users:
+* Peter Rutschmann (Admin) - login: peter.rutschmann@gmail.com - pw: test1234 
+* Johannes Höffliger (Member) - login: johannes.höffliger@gmail.com - pw: test1234
+
 
 
 <!-- USAGE EXAMPLES -->
 ## Important Information
+### Links
+* API Documentation: http://localhost:8080/swagger-ui/index.html
 
 ### Database structure
 The database was designed with the assumption that the bookable locations are actual office workstations. For that reason the admin will handle any assignement of bookings to specific available Seats. 
