@@ -13,7 +13,7 @@ public class BookingService {
     BookingRepository bookingRepository;
     UserRepository userRepository;
 
-    public BookingService(BookingRepository bookingRepository) {
+    public BookingService(BookingRepository bookingRepository, UserRepository userRepository) {
         this.bookingRepository = bookingRepository;
         this.userRepository = userRepository;
     }
@@ -28,9 +28,9 @@ public class BookingService {
     public ResponseEntity getBookingByUser(Long id) {
         boolean userExists = userRepository.existsById(id);
         if(userExists){
-            return new ResponseEntity(bookingRepository.findByCreator(id), HttpStatus.OK);
+            return new ResponseEntity(bookingRepository.findByCreatorId(id), HttpStatus.OK);
         }else{
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity("User with given ID does not exist", HttpStatus.NOT_FOUND);
         }
     }
 
@@ -58,7 +58,7 @@ public class BookingService {
             bookingRepository.save(bookingToUpdate);
             return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
         }else{
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
         }
     }
 
@@ -71,7 +71,7 @@ public class BookingService {
             bookingRepository.save(bookingToUpdate);
             return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
         }else{
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
         }
     }
 
@@ -82,7 +82,7 @@ public class BookingService {
             bookingRepository.deleteById(id);
             return new ResponseEntity(HttpStatus.OK);
         }else{
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
         }
     }
 

@@ -9,7 +9,6 @@ import java.util.Optional;
 
 @Repository
 public interface BookingRepository extends CrudRepository<Booking, Long> {
-    Optional<Booking> findByCreator(Long id);
-
+    Optional<Booking> findByCreatorId(Long id);
     List<Booking> findAllByStatus(String status);
 }
