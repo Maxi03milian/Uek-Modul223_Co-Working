@@ -40,19 +40,19 @@ public class BookingController {
             if(bookingService.getBookingsByStatusAndUserId(status, userid) != null){
                 return new ResponseEntity(bookingService.getBookingsByStatusAndUserId(status, userid), HttpStatus.OK);
             }else {
-                return new ResponseEntity(HttpStatus.NOT_FOUND);
+                return new ResponseEntity(HttpStatus.BAD_REQUEST);
             }
         } else if(status != null){
             if(bookingService.getBookingByStatus(status) != null){
                 return new ResponseEntity(bookingService.getBookingByStatus(status), HttpStatus.OK);
             }else {
-                return new ResponseEntity(HttpStatus.NOT_FOUND);
+                return new ResponseEntity(HttpStatus.BAD_REQUEST);
             }
         } else if(userid != null){
             if(bookingService.getBookingByUser(userid) != null){
                 return new ResponseEntity(bookingService.getBookingByUser(userid), HttpStatus.OK);
             }else {
-                return new ResponseEntity(HttpStatus.NOT_FOUND);
+                return new ResponseEntity(HttpStatus.BAD_REQUEST);
             }
         } else {
             return new ResponseEntity(bookingService.getBookings(), HttpStatus.OK);
@@ -70,7 +70,7 @@ public class BookingController {
         if(bookingService.getBookingById(id) != null){
             return new ResponseEntity(bookingService.getBookingById(id), HttpStatus.OK);
         }else {
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -84,9 +84,9 @@ public class BookingController {
     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
         Booking bookingworks = bookingService.createBooking(booking, token);
         if(bookingworks != null){
-            return new ResponseEntity(bookingworks, HttpStatus.CREATED);
+            return new ResponseEntity(bookingworks, HttpStatus.OK);
         }else {
-            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+            return new ResponseEntity("Invalid date, date in the past in not possible", HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -102,7 +102,7 @@ public class BookingController {
         if(bookingworks != null){
             return new ResponseEntity(bookingworks, HttpStatus.OK);
         }else {
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -117,7 +117,7 @@ public class BookingController {
         if(bookingworks != null){
             return new ResponseEntity(bookingworks, HttpStatus.OK);
         }else {
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -132,7 +132,7 @@ public class BookingController {
         if(bookingService.deleteBooking(id)){
             return new ResponseEntity(HttpStatus.OK);
         }else {
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
     }
 
