@@ -43,7 +43,7 @@ public class BookingService {
     public ResponseEntity getBookingByUser(UUID id) {
         boolean userExists = memberRepository.existsById(id);
         if(userExists){
-            return new ResponseEntity(bookingRepository.findByCreatorId(id), HttpStatus.OK);
+            return new ResponseEntity(bookingRepository.findAllByCreatorId(id), HttpStatus.OK);
         }else{
             return new ResponseEntity("User with given ID does not exist", HttpStatus.NOT_FOUND);
         }

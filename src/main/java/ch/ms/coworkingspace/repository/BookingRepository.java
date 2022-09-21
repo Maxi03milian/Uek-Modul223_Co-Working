@@ -14,4 +14,6 @@ public interface BookingRepository extends CrudRepository<Booking, UUID> {
     List<Booking> findAllByStatus(String status);
 
     List<Booking> findAllByStatusAndCreatorId(String status, UUID userid);
+
+    List<Booking> findAllByCreatorId(UUID id);
 }

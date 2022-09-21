@@ -63,7 +63,7 @@ public class BookingController {
     )
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestBody Member member, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
+    public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
         return bookingService.createBooking(booking, token);
     }
 
