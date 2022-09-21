@@ -76,7 +76,6 @@ public class BookingService {
         boolean bookingExists = bookingRepository.existsById(id);
         if(bookingExists){
             Booking bookingToUpdate = bookingRepository.findById(id).get();
-            bookingToUpdate.setCreator(booking.getCreator());
             bookingToUpdate.setDayDuration(booking.getDayDuration());
             bookingToUpdate.setDate(booking.getDate());
             bookingToUpdate.setStatus(booking.getStatus());
@@ -109,7 +108,7 @@ public class BookingService {
             bookingRepository.save(bookingToUpdate);
             return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
         }else{
-return new ResponseEntity("You are not allowed to change the status of this booking", HttpStatus.FORBIDDEN);
+            return new ResponseEntity("You are not allowed to change the status of this booking", HttpStatus.FORBIDDEN);
         }
     }
 
