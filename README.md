@@ -62,4 +62,16 @@ Therefore, the database <b>does not feature a Table for the location of bookings
 ### Client Demo (Postman)
 To be able to make requests to endpoints in a manner, corresponding to how an actual client would. There will be a Postman export in addition to the base Project
 that can be used to make requests to the endpoints. The Postman export can be found in the root directory of the project.
+To get a new JWT Token, you first need to log in as an existing user under /auth/login. In Postman, this can be found in the 'Auth' folder.
+After you have logged in, you can use the JWT Token in the 'Authorization' tab of Postman to make requests to the other endpoints.
 
+A Member can only make requests to the following endpoints:
+* POST /auth/login -> Log in as a user
+* PUT /users/{id} -> update user (only your own user) by ID (id) 
+  Requestbody {name, lastname, password)}
+* POST /bookings -> create new booking<br>
+    Requestbody {date, duration}
+* PUT /bookings/{id} -> update booking status (only where you are the creator) by ID (id)<br>
+  Requestbody {date, duration, status)}
+
+For further information, please refer to the swagger documentation accompanying the project or Read the API endpoints documentation (from an earlier assignment).
