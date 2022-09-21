@@ -74,4 +74,4 @@ A Member can only make requests to the following endpoints:
 * PUT /bookings/{id} -> update booking status (only where you are the creator) by ID (id)<br>
   Requestbody {date, duration, status)}
 
-For further information, please refer to the swagger documentation accompanying the project or Read the API endpoints documentation (from an earlier assignment).
+For further information, please refer to the swagger documentation accompanying the project or read the API endpoints documentation (from an earlier assignment).
