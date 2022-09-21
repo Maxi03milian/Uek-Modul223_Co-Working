@@ -10,9 +10,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.awt.print.Book;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -30,31 +32,35 @@ public class BookingService {
 
 
     //getBookings
-    public ResponseEntity getBookings() {
-        return new ResponseEntity(bookingRepository.findAll(), HttpStatus.OK);
+    public List<Booking> getBookings() {
+        return (List<Booking>) bookingRepository.findAll();
     }
 
     //getbooking by id
-    public ResponseEntity getBookingById(UUID id) {
-        return new ResponseEntity(bookingRepository.findById(id), HttpStatus.OK);
+    public Booking getBookingById(UUID id) {
+        if(bookingRepository.existsById(id)){
+            return bookingRepository.findById(id).get();
+        }else{
+            return null;
+        }
     }
 
     //getBooking by user
-    public ResponseEntity getBookingByUser(UUID id) {
+    public List<Booking> getBookingByUser(UUID id) {
         boolean userExists = memberRepository.existsById(id);
         if(userExists){
-            return new ResponseEntity(bookingRepository.findAllByCreatorId(id), HttpStatus.OK);
+            return bookingRepository.findAllByCreatorId(id);
         }else{
-            return new ResponseEntity("User with given ID does not exist", HttpStatus.NOT_FOUND);
+            return null;
         }
     }
 
     //getBooking by status
-    public ResponseEntity getBookingByStatus(String status) {
-        return new ResponseEntity(bookingRepository.findAllByStatus(status), HttpStatus.OK);
+    public List<Booking> getBookingByStatus(String status) {
+        return bookingRepository.findAllByStatus(status);
     }
 
-    public ResponseEntity createBooking(Booking booking, String token) throws GeneralSecurityException, IOException {
+    public Booking createBooking(Booking booking, String token) throws GeneralSecurityException, IOException {
         token = token.substring(7);
         DecodedJWT decode = jwtService.verifyJwt(token, true);
         String userId = decode.getClaim("user_id").asString();
@@ -63,16 +69,16 @@ public class BookingService {
         booking.setCreator(member);
 
         if(booking.getDate().isBefore(LocalDate.now())) {
-            throw new IllegalArgumentException("Invalid date, date in the past in not possible");
+            return null;
         }
 
         bookingRepository.save(booking);
-        return new ResponseEntity(booking, HttpStatus.OK);
+        return booking;
     }
 
 
     //updateBooking (Full booking update. Intended for admin emergency use)
-    public ResponseEntity updateBooking(UUID id, Booking booking) {
+    public Booking updateBooking(UUID id, Booking booking) {
         boolean bookingExists = bookingRepository.existsById(id);
         if(bookingExists){
             Booking bookingToUpdate = bookingRepository.findById(id).get();
@@ -80,14 +86,14 @@ public class BookingService {
             bookingToUpdate.setDate(booking.getDate());
             bookingToUpdate.setStatus(booking.getStatus());
             bookingRepository.save(bookingToUpdate);
-            return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
+            return bookingToUpdate;
         }else{
-            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
+            return null;
         }
     }
 
     //updateBookingStatus
-    public ResponseEntity updateBookingStatus(UUID id, Booking booking, String token) throws GeneralSecurityException, IOException {
+    public Booking updateBookingStatus(UUID id, Booking booking, String token) throws GeneralSecurityException, IOException {
         boolean bookingExists = bookingRepository.existsById(id);
         token = token.substring(7);
         DecodedJWT decoded = jwtService.verifyJwt(token, true);
@@ -96,40 +102,40 @@ public class BookingService {
         String email = decoded.getClaim("name").asString();
         Member memberSelf = memberRepository.findByEmail(email).get();
         if(!bookingExists){
-            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
+            return null;
         }else if(memberSelf.getRole().equals("ADMIN")){
             Booking bookingToUpdate = bookingRepository.findById(id).get();
             bookingToUpdate.setStatus(booking.getStatus());
             bookingRepository.save(bookingToUpdate);
-            return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
+            return bookingToUpdate;
         }else if(bookingRepository.findById(id).get().getCreator().getId().equals(UUID.fromString(user_id)) && booking.getStatus().equals("CANCELLED")){
             Booking bookingToUpdate = bookingRepository.findById(id).get();
             bookingToUpdate.setStatus(booking.getStatus());
             bookingRepository.save(bookingToUpdate);
-            return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
+            return bookingToUpdate;
         }else{
-            return new ResponseEntity("You are not allowed to change the status of this booking", HttpStatus.FORBIDDEN);
+            return null;
         }
     }
 
     //deleteBooking by id
-    public ResponseEntity deleteBooking(UUID id) {
+    public boolean deleteBooking(UUID id) {
         boolean bookingExists = bookingRepository.existsById(id);
         if(bookingExists){
             bookingRepository.deleteById(id);
-            return new ResponseEntity(HttpStatus.OK);
+            return true;
         }else{
-            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
+            return false;
         }
     }
 
 
-    public ResponseEntity<Booking> getBookingsByStatusAndUserId(String status, UUID userid) {
+    public List<Booking> getBookingsByStatusAndUserId(String status, UUID userid) {
         boolean userExists = memberRepository.existsById(userid);
         if(userExists){
-            return new ResponseEntity(bookingRepository.findAllByStatusAndCreatorId(status, userid), HttpStatus.OK);
+            return bookingRepository.findAllByStatusAndCreatorId(status, userid);
         }else{
-            return new ResponseEntity("User with given ID does not exist", HttpStatus.NOT_FOUND);
+            return null;
         }
     }
 }

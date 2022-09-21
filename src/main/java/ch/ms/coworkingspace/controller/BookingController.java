@@ -3,6 +3,7 @@ package ch.ms.coworkingspace.controller;
 import ch.ms.coworkingspace.model.Booking;
 import ch.ms.coworkingspace.model.Member;
 import ch.ms.coworkingspace.service.BookingService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.List;
 import java.util.UUID;
 
 
@@ -33,15 +35,27 @@ public class BookingController {
     )
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Booking> getAllBookings(@RequestParam(value = "status", required = false) String status, @RequestParam(value = "userid", required = false) UUID userid){
+    public ResponseEntity<List<Booking>> getAllBookings(@RequestParam(value = "status", required = false) String status, @RequestParam(value = "userid", required = false) UUID userid){
         if(status != null && userid != null){
-            return bookingService.getBookingsByStatusAndUserId(status, userid);
+            if(bookingService.getBookingsByStatusAndUserId(status, userid) != null){
+                return new ResponseEntity(bookingService.getBookingsByStatusAndUserId(status, userid), HttpStatus.OK);
+            }else {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
         } else if(status != null){
-            return bookingService.getBookingByStatus(status);
+            if(bookingService.getBookingByStatus(status) != null){
+                return new ResponseEntity(bookingService.getBookingByStatus(status), HttpStatus.OK);
+            }else {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
         } else if(userid != null){
-            return bookingService.getBookingByUser(userid);
+            if(bookingService.getBookingByUser(userid) != null){
+                return new ResponseEntity(bookingService.getBookingByUser(userid), HttpStatus.OK);
+            }else {
+                return new ResponseEntity(HttpStatus.NOT_FOUND);
+            }
         } else {
-            return bookingService.getBookings();
+            return new ResponseEntity(bookingService.getBookings(), HttpStatus.OK);
         }
     }
 
@@ -53,7 +67,11 @@ public class BookingController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> getBookingById(@PathVariable UUID id){
-        return bookingService.getBookingById(id);
+        if(bookingService.getBookingById(id) != null){
+            return new ResponseEntity(bookingService.getBookingById(id), HttpStatus.OK);
+        }else {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
     }
 
     @Operation(
@@ -64,7 +82,11 @@ public class BookingController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
-        return bookingService.createBooking(booking, token);
+        if(bookingService.createBooking(booking, token) != null){
+            return new ResponseEntity(bookingService.createBooking(booking, token), HttpStatus.CREATED);
+        }else {
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+        }
     }
 
     @Operation(
@@ -75,7 +97,11 @@ public class BookingController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> updateBooking(@PathVariable UUID id, @RequestBody Booking booking){
-        return bookingService.updateBooking(id, booking);
+        if(bookingService.updateBooking(id, booking) != null){
+            return new ResponseEntity(bookingService.updateBooking(id, booking), HttpStatus.OK);
+        }else {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
     }
 
     @Operation(
@@ -85,7 +111,11 @@ public class BookingController {
     )
     @PutMapping("/status/{id}")
     public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
-        return bookingService.updateBookingStatus(id, booking, token);
+        if(bookingService.updateBookingStatus(id, booking, token) != null){
+            return new ResponseEntity(HttpStatus.OK);
+        }else {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
     }
 
     @Operation(
@@ -96,7 +126,11 @@ public class BookingController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> deleteBooking(@PathVariable UUID id){
-        return bookingService.deleteBooking(id);
+        if(bookingService.deleteBooking(id)){
+            return new ResponseEntity(HttpStatus.OK);
+        }else {
+            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        }
     }
 
 
