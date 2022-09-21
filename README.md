@@ -1,7 +1,7 @@
 <h2 align="center">ÜK Modul-223 - Co-working Space application</h2>
 
   <p align="center">
-    An application for a co-working space. The application is developed as the final practial assignement of the Modul 223 course at ZLI.:
+    An application for a co-working space. The application is developed as the final practial assignement of the Modul 223 course at ZLI.
     <br />
   </p>
 <br>
