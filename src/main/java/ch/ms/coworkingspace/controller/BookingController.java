@@ -80,7 +80,7 @@ public class BookingController {
 
     @Operation(
             summary = "Update the status from an existing booking",
-            description = "Update information from a specific booking by ID.",
+            description = "Update information from a specific booking by ID. NOTE: The user can only update his own booking to 'CANCELLED'. Admin can do all actions",
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @PutMapping("/status/{id}")
