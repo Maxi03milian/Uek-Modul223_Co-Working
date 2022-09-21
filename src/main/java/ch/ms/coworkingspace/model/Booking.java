@@ -15,7 +15,7 @@ public class Booking {
     @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
     @Column(name = "id", updatable = false, nullable = false)
     @Type(type = "org.hibernate.type.UUIDCharType")
-    private UUID id = UUID.randomUUID();
+    private UUID id;
     @ManyToOne
     @JoinColumn(name = "creator", referencedColumnName = "id")
     private Member creator;

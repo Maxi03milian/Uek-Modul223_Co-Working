@@ -82,8 +82,9 @@ public class BookingController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
-        if(bookingService.createBooking(booking, token) != null){
-            return new ResponseEntity(bookingService.createBooking(booking, token), HttpStatus.CREATED);
+        Booking bookingworks = bookingService.createBooking(booking, token);
+        if(bookingworks != null){
+            return new ResponseEntity(bookingworks, HttpStatus.CREATED);
         }else {
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
@@ -97,8 +98,9 @@ public class BookingController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Booking> updateBooking(@PathVariable UUID id, @RequestBody Booking booking){
-        if(bookingService.updateBooking(id, booking) != null){
-            return new ResponseEntity(bookingService.updateBooking(id, booking), HttpStatus.OK);
+        Booking bookingworks = bookingService.updateBooking(id, booking);
+        if(bookingworks != null){
+            return new ResponseEntity(bookingworks, HttpStatus.OK);
         }else {
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
@@ -111,8 +113,9 @@ public class BookingController {
     )
     @PutMapping("/status/{id}")
     public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
-        if(bookingService.updateBookingStatus(id, booking, token) != null){
-            return new ResponseEntity(HttpStatus.OK);
+        Booking bookingworks = bookingService.updateBookingStatus(id, booking, token);
+        if(bookingworks != null){
+            return new ResponseEntity(bookingworks, HttpStatus.OK);
         }else {
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }

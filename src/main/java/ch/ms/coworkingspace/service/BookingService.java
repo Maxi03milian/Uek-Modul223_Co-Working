@@ -67,11 +67,9 @@ public class BookingService {
         Member member = memberRepository.findById(UUID.fromString(userId)).get();
         booking.setStatus("PENDING");
         booking.setCreator(member);
-
         if(booking.getDate().isBefore(LocalDate.now())) {
             return null;
         }
-
         bookingRepository.save(booking);
         return booking;
     }
