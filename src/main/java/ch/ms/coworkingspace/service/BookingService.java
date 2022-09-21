@@ -88,15 +88,28 @@ public class BookingService {
     }
 
     //updateBookingStatus
-    public ResponseEntity updateBookingStatus(UUID id, Booking booking) {
+    public ResponseEntity updateBookingStatus(UUID id, Booking booking, String token) throws GeneralSecurityException, IOException {
         boolean bookingExists = bookingRepository.existsById(id);
-        if(bookingExists){
+        token = token.substring(7);
+        DecodedJWT decoded = jwtService.verifyJwt(token, true);
+        String user_id = decoded.getClaim("user_id").asString();
+        String[] scope = decoded.getClaim("scope").asArray(String.class);
+        String email = decoded.getClaim("name").asString();
+        Member memberSelf = memberRepository.findByEmail(email).get();
+        if(!bookingExists){
+            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
+        }else if(memberSelf.getRole().equals("ADMIN")){
+            Booking bookingToUpdate = bookingRepository.findById(id).get();
+            bookingToUpdate.setStatus(booking.getStatus());
+            bookingRepository.save(bookingToUpdate);
+            return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
+        }else if(bookingRepository.findById(id).get().getCreator().getId().equals(UUID.fromString(user_id)) && booking.getStatus().equals("CANCELLED")){
             Booking bookingToUpdate = bookingRepository.findById(id).get();
             bookingToUpdate.setStatus(booking.getStatus());
             bookingRepository.save(bookingToUpdate);
             return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
         }else{
-            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
+return new ResponseEntity("You are not allowed to change the status of this booking", HttpStatus.FORBIDDEN);
         }
     }
 

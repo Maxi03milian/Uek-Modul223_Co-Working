@@ -84,9 +84,8 @@ public class BookingController {
             security = {@SecurityRequirement(name = "JWT Auth")}
     )
     @PutMapping("/status/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking){
-        return bookingService.updateBookingStatus(id, booking);
+    public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
+        return bookingService.updateBookingStatus(id, booking, token);
     }
 
     @Operation(
