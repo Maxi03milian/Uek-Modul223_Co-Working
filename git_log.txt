@@ -1,0 +1,4824 @@
+commit bf7d3a955d21d3e2392da71b700caf778a8d7406
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 14:12:08 2022 +0200
+
+    added integration tests
+
+diff --git a/init/01.sql b/init/01.sql
+index 22471b9..15c98bc 100644
+--- a/init/01.sql
++++ b/init/01.sql
+@@ -59,4 +59,5 @@ VALUES (
+         'MEMBER'
+     );
+ INSERT INTO BOOKING (id, creator, day_duration, date, status)
+-VALUES ('413e2297-b84b-42ef-97ed-16a8a9d1d671', '4be5f5bf-8eb5-44ea-8eb5-a5e807856d09', 0.5, '2022-09-23', 'Pending');
+\ No newline at end of file
++VALUES ('413e2297-b84b-42ef-97ed-16a8a9d1d671', '4be5f5bf-8eb5-44ea-8eb5-a5e807856d09', 0.5, '2022-09-27', 'Pending'),
++ ('777e2297-b84b-42ef-97ed-16a8a9d1d671', '4be5f5bf-8eb5-44ea-8eb5-a5e807856d09', 1, '2022-09-26', 'Pending');
+\ No newline at end of file
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index 8cc8a79..514d091 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -40,19 +40,19 @@ public class BookingController {
+             if(bookingService.getBookingsByStatusAndUserId(status, userid) != null){
+                 return new ResponseEntity(bookingService.getBookingsByStatusAndUserId(status, userid), HttpStatus.OK);
+             }else {
+-                return new ResponseEntity(HttpStatus.NOT_FOUND);
++                return new ResponseEntity(HttpStatus.BAD_REQUEST);
+             }
+         } else if(status != null){
+             if(bookingService.getBookingByStatus(status) != null){
+                 return new ResponseEntity(bookingService.getBookingByStatus(status), HttpStatus.OK);
+             }else {
+-                return new ResponseEntity(HttpStatus.NOT_FOUND);
++                return new ResponseEntity(HttpStatus.BAD_REQUEST);
+             }
+         } else if(userid != null){
+             if(bookingService.getBookingByUser(userid) != null){
+                 return new ResponseEntity(bookingService.getBookingByUser(userid), HttpStatus.OK);
+             }else {
+-                return new ResponseEntity(HttpStatus.NOT_FOUND);
++                return new ResponseEntity(HttpStatus.BAD_REQUEST);
+             }
+         } else {
+             return new ResponseEntity(bookingService.getBookings(), HttpStatus.OK);
+@@ -70,7 +70,7 @@ public class BookingController {
+         if(bookingService.getBookingById(id) != null){
+             return new ResponseEntity(bookingService.getBookingById(id), HttpStatus.OK);
+         }else {
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+         }
+     }
+ 
+@@ -84,9 +84,9 @@ public class BookingController {
+     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
+         Booking bookingworks = bookingService.createBooking(booking, token);
+         if(bookingworks != null){
+-            return new ResponseEntity(bookingworks, HttpStatus.CREATED);
++            return new ResponseEntity(bookingworks, HttpStatus.OK);
+         }else {
+-            return new ResponseEntity(HttpStatus.BAD_REQUEST);
++            return new ResponseEntity("Invalid date, date in the past in not possible", HttpStatus.BAD_REQUEST);
+         }
+     }
+ 
+@@ -102,7 +102,7 @@ public class BookingController {
+         if(bookingworks != null){
+             return new ResponseEntity(bookingworks, HttpStatus.OK);
+         }else {
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+         }
+     }
+ 
+@@ -117,7 +117,7 @@ public class BookingController {
+         if(bookingworks != null){
+             return new ResponseEntity(bookingworks, HttpStatus.OK);
+         }else {
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+         }
+     }
+ 
+@@ -132,7 +132,7 @@ public class BookingController {
+         if(bookingService.deleteBooking(id)){
+             return new ResponseEntity(HttpStatus.OK);
+         }else {
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+         }
+     }
+ 
+diff --git a/src/test/java/ch/ms/coworkingspace/BookingControllerIntegrationTest.java b/src/test/java/ch/ms/coworkingspace/BookingControllerIntegrationTest.java
+index 1a99ef3..0ffd67c 100644
+--- a/src/test/java/ch/ms/coworkingspace/BookingControllerIntegrationTest.java
++++ b/src/test/java/ch/ms/coworkingspace/BookingControllerIntegrationTest.java
+@@ -1,2 +1,180 @@
+ package ch.ms.coworkingspace;
+ 
++import ch.ms.coworkingspace.model.Booking;
++import ch.ms.coworkingspace.security.JwtServiceHMAC;
++import ch.ms.coworkingspace.service.BookingService;
++import ch.ms.coworkingspace.service.MemberService;
++import com.fasterxml.jackson.core.type.TypeReference;
++import com.fasterxml.jackson.databind.ObjectMapper;
++import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
++import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
++import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
++import jdk.jfr.Description;
++import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.http.MediaType;
++import org.springframework.test.web.servlet.MockMvc;
++import org.springframework.test.web.servlet.MvcResult;
++
++import java.time.*;
++import java.util.List;
++import java.util.UUID;
++
++import static org.junit.jupiter.api.Assertions.*;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
++import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
++
++@SpringBootTest
++@AutoConfigureMockMvc
++public class BookingControllerIntegrationTest {
++
++    @Autowired
++    private MockMvc mockMvc;
++
++    @Autowired
++    private JwtServiceHMAC jwtService;
++
++    @Autowired
++    private ObjectMapper objectMapper;
++
++    @Autowired
++    private BookingService bookingService;
++
++    private String accessToken;
++    private ObjectMapper mapper;
++
++    @BeforeEach
++    public void init() {
++        accessToken = jwtService.createNewJWT(UUID.randomUUID().toString(), "4be5f5bf-8eb5-44ea-8eb5-a5e807856d09", "peter@rutschmann@gmail.com", List.of("ADMIN"));
++        mapper = new ObjectMapper()
++                .registerModule(new ParameterNamesModule())
++                .registerModule(new Jdk8Module())
++                .registerModule(new JavaTimeModule());
++    }
++
++
++    @Test
++    @Description("Tests if all entries in the inital db are reachable")
++    public void getAllBookings() throws Exception {
++        MvcResult response = mockMvc.perform(get("/bookings").header("Authorization", "Bearer " + accessToken))
++                .andExpect(status().isOk())
++                .andDo(print())
++                .andReturn();
++
++        List<Booking> bookings = objectMapper.readValue(response.getResponse().getContentAsString(), new TypeReference<>() {
++        });
++
++        assertTrue(bookings.size() >= 1);
++    }
++
++    @Test
++    @Description("Test get booking by user id")
++    public void getBookingByUserId() throws Exception {
++        MvcResult response = mockMvc.perform(get("/bookings?userid=4be5f5bf-8eb5-44ea-8eb5-a5e807856d09").header("Authorization", "Bearer " + accessToken))
++                .andExpect(status().isOk())
++                .andDo(print())
++                .andReturn();
++
++        List<Booking> bookings = objectMapper.readValue(response.getResponse().getContentAsString(), new TypeReference<>() {
++        });
++        assertTrue(bookings.size() >= 1);
++    }
++
++    @Test
++    @Description("Get all Bookings with certain status")
++    public void getBookingsByStaus() throws Exception {
++        MvcResult response = mockMvc.perform(get("/bookings?status?=PENDING").header("Authorization", "Bearer " + accessToken))
++                .andExpect(status().isOk())
++                .andDo(print())
++                .andReturn();
++
++        List<Booking> bookings = objectMapper.readValue(response.getResponse().getContentAsString(), new TypeReference<>() {
++        });
++        assertTrue(bookings.size() >= 1);
++    }
++
++
++    @Test
++    @Description("Adding a booking with given user and valid informtion")
++    public void createValidBooking() throws Exception {
++        Booking booking = new Booking();
++        booking.setDate(LocalDate.now());
++        booking.setDayDuration(1);
++
++        String requestBody = mapper.writeValueAsString(booking);
++
++        MvcResult response = mockMvc.perform(post("/bookings").contentType(MediaType.APPLICATION_JSON)
++                        .content(requestBody)
++                        .header("Authorization", "Bearer " + accessToken))
++                .andExpect(status().isOk())
++                .andDo(print())
++                .andReturn();
++
++        Booking res = mapper.readValue(response.getResponse().getContentAsString(), Booking.class);
++        Booking responseBooking = bookingService.getBookingById(res.getId());
++        assertTrue(responseBooking != null);
++        assertEquals(1, responseBooking.getDayDuration());
++        assertEquals("PENDING", responseBooking.getStatus());
++        assertEquals(LocalDate.now(), responseBooking.getDate());
++    }
++
++    @Test
++    @Description("throws exception when date of booking is in the past")
++    public void createBookingWithInvalidDate() throws Exception {
++
++        Booking booking = new Booking();
++        booking.setDate(LocalDate.now().minusDays(3));
++        booking.setDayDuration(0.5f);
++
++        String request = mapper.writeValueAsString(booking);
++
++        MvcResult result = mockMvc.perform(post("/bookings").contentType(MediaType.APPLICATION_JSON)
++                        .content(request)
++                        .header("Authorization", "Bearer " + accessToken))
++                .andExpect(status().isBadRequest())
++                .andDo(print())
++                .andReturn();
++
++        assertEquals("Invalid date, date in the past in not possible", result.getResponse().getContentAsString());
++
++    }
++
++    @Test
++    @Description("Update exisitng booking with id")
++    public void updateBooking() throws Exception {
++        Booking booking = new Booking();
++        booking.setDate(LocalDate.now().plusDays(2));
++        booking.setDayDuration(0.5f);
++        booking.setStatus("ACCEPTED");
++
++        String requestBody = mapper.writeValueAsString(booking);
++
++        MvcResult response = mockMvc.perform(put("/bookings/413e2297-b84b-42ef-97ed-16a8a9d1d671").contentType(MediaType.APPLICATION_JSON)
++                        .content(requestBody)
++                        .header("Authorization", "Bearer " + accessToken))
++                .andExpect(status().isOk())
++                .andDo(print())
++                .andReturn();
++
++        Booking res = mapper.readValue(response.getResponse().getContentAsString(), Booking.class);
++        Booking responseBooking = bookingService.getBookingById(res.getId());
++        assertTrue(responseBooking != null);
++        assertEquals(0.5f, booking.getDayDuration());
++        assertEquals("ACCEPTED", responseBooking.getStatus());
++        assertEquals(LocalDate.now().plusDays(2), responseBooking.getDate());
++    }
++
++    @Test
++    @Description("Delete an exisitng booking by Id")
++    public void deleteById() throws Exception {
++        mockMvc.perform(delete("/bookings/777e2297-b84b-42ef-97ed-16a8a9d1d671").contentType(MediaType.APPLICATION_JSON).header("Authorization", "Bearer " + accessToken))
++                .andExpect(status().isOk())
++                .andDo(print())
++                .andReturn();
++    }
++
++}
+\ No newline at end of file
+
+commit e5145fa40fad16b7a61d21713655e9b8b7ea132c
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 13:47:58 2022 +0200
+
+    fixed id bugs
+
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index ca0282b..8cc8a79 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -82,8 +82,9 @@ public class BookingController {
+     @PostMapping
+     @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
+-        if(bookingService.createBooking(booking, token) != null){
+-            return new ResponseEntity(bookingService.createBooking(booking, token), HttpStatus.CREATED);
++        Booking bookingworks = bookingService.createBooking(booking, token);
++        if(bookingworks != null){
++            return new ResponseEntity(bookingworks, HttpStatus.CREATED);
+         }else {
+             return new ResponseEntity(HttpStatus.BAD_REQUEST);
+         }
+@@ -97,8 +98,9 @@ public class BookingController {
+     @PutMapping("/{id}")
+     @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> updateBooking(@PathVariable UUID id, @RequestBody Booking booking){
+-        if(bookingService.updateBooking(id, booking) != null){
+-            return new ResponseEntity(bookingService.updateBooking(id, booking), HttpStatus.OK);
++        Booking bookingworks = bookingService.updateBooking(id, booking);
++        if(bookingworks != null){
++            return new ResponseEntity(bookingworks, HttpStatus.OK);
+         }else {
+             return new ResponseEntity(HttpStatus.NOT_FOUND);
+         }
+@@ -111,8 +113,9 @@ public class BookingController {
+     )
+     @PutMapping("/status/{id}")
+     public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
+-        if(bookingService.updateBookingStatus(id, booking, token) != null){
+-            return new ResponseEntity(HttpStatus.OK);
++        Booking bookingworks = bookingService.updateBookingStatus(id, booking, token);
++        if(bookingworks != null){
++            return new ResponseEntity(bookingworks, HttpStatus.OK);
+         }else {
+             return new ResponseEntity(HttpStatus.NOT_FOUND);
+         }
+diff --git a/src/main/java/ch/ms/coworkingspace/model/Booking.java b/src/main/java/ch/ms/coworkingspace/model/Booking.java
+index 8087f7f..a86e1e0 100644
+--- a/src/main/java/ch/ms/coworkingspace/model/Booking.java
++++ b/src/main/java/ch/ms/coworkingspace/model/Booking.java
+@@ -15,7 +15,7 @@ public class Booking {
+     @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
+     @Column(name = "id", updatable = false, nullable = false)
+     @Type(type = "org.hibernate.type.UUIDCharType")
+-    private UUID id = UUID.randomUUID();
++    private UUID id;
+     @ManyToOne
+     @JoinColumn(name = "creator", referencedColumnName = "id")
+     private Member creator;
+diff --git a/src/main/java/ch/ms/coworkingspace/model/Member.java b/src/main/java/ch/ms/coworkingspace/model/Member.java
+index 23d47a6..f353b0a 100644
+--- a/src/main/java/ch/ms/coworkingspace/model/Member.java
++++ b/src/main/java/ch/ms/coworkingspace/model/Member.java
+@@ -14,7 +14,7 @@ public class Member {
+     @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
+     @Column(name = "id", updatable = false, nullable = false)
+     @Type(type = "org.hibernate.type.UUIDCharType")
+-    private UUID id = UUID.randomUUID();
++    private UUID id;
+ 
+     @Column(name = "name", nullable = false)
+     private String name;
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+index 230c05f..a9d3f55 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/BookingService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -67,11 +67,9 @@ public class BookingService {
+         Member member = memberRepository.findById(UUID.fromString(userId)).get();
+         booking.setStatus("PENDING");
+         booking.setCreator(member);
+-
+         if(booking.getDate().isBefore(LocalDate.now())) {
+             return null;
+         }
+-
+         bookingRepository.save(booking);
+         return booking;
+     }
+
+commit 3aebd61eaf0d891a76294f5e691ca3ef8371a90e
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 11:36:28 2022 +0200
+
+    corrected Booking service methods
+
+diff --git a/pom.xml b/pom.xml
+index f000545..1b43389 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -49,6 +49,17 @@
+ 			<groupId>org.springframework.boot</groupId>
+ 			<artifactId>spring-boot-starter-security</artifactId>
+ 		</dependency>
++		<dependency>
++			<groupId>org.junit.vintage</groupId>
++			<artifactId>junit-vintage-engine</artifactId>
++			<scope>test</scope>
++			<exclusions>
++				<exclusion>
++					<groupId>org.hamcrest</groupId>
++					<artifactId>hamcrest-core</artifactId>
++				</exclusion>
++			</exclusions>
++		</dependency>
+ 	</dependencies>
+ 	<build>
+ 		<plugins>
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index e8c2804..ca0282b 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -3,6 +3,7 @@ package ch.ms.coworkingspace.controller;
+ import ch.ms.coworkingspace.model.Booking;
+ import ch.ms.coworkingspace.model.Member;
+ import ch.ms.coworkingspace.service.BookingService;
++import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.security.access.prepost.PreAuthorize;
+ import org.springframework.web.bind.annotation.*;
+@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
+ 
+ import java.io.IOException;
+ import java.security.GeneralSecurityException;
++import java.util.List;
+ import java.util.UUID;
+ 
+ 
+@@ -33,15 +35,27 @@ public class BookingController {
+     )
+     @GetMapping
+     @PreAuthorize("hasRole('ADMIN')")
+-    public ResponseEntity<Booking> getAllBookings(@RequestParam(value = "status", required = false) String status, @RequestParam(value = "userid", required = false) UUID userid){
++    public ResponseEntity<List<Booking>> getAllBookings(@RequestParam(value = "status", required = false) String status, @RequestParam(value = "userid", required = false) UUID userid){
+         if(status != null && userid != null){
+-            return bookingService.getBookingsByStatusAndUserId(status, userid);
++            if(bookingService.getBookingsByStatusAndUserId(status, userid) != null){
++                return new ResponseEntity(bookingService.getBookingsByStatusAndUserId(status, userid), HttpStatus.OK);
++            }else {
++                return new ResponseEntity(HttpStatus.NOT_FOUND);
++            }
+         } else if(status != null){
+-            return bookingService.getBookingByStatus(status);
++            if(bookingService.getBookingByStatus(status) != null){
++                return new ResponseEntity(bookingService.getBookingByStatus(status), HttpStatus.OK);
++            }else {
++                return new ResponseEntity(HttpStatus.NOT_FOUND);
++            }
+         } else if(userid != null){
+-            return bookingService.getBookingByUser(userid);
++            if(bookingService.getBookingByUser(userid) != null){
++                return new ResponseEntity(bookingService.getBookingByUser(userid), HttpStatus.OK);
++            }else {
++                return new ResponseEntity(HttpStatus.NOT_FOUND);
++            }
+         } else {
+-            return bookingService.getBookings();
++            return new ResponseEntity(bookingService.getBookings(), HttpStatus.OK);
+         }
+     }
+ 
+@@ -53,7 +67,11 @@ public class BookingController {
+     @GetMapping("/{id}")
+     @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> getBookingById(@PathVariable UUID id){
+-        return bookingService.getBookingById(id);
++        if(bookingService.getBookingById(id) != null){
++            return new ResponseEntity(bookingService.getBookingById(id), HttpStatus.OK);
++        }else {
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
+     }
+ 
+     @Operation(
+@@ -64,7 +82,11 @@ public class BookingController {
+     @PostMapping
+     @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
+-        return bookingService.createBooking(booking, token);
++        if(bookingService.createBooking(booking, token) != null){
++            return new ResponseEntity(bookingService.createBooking(booking, token), HttpStatus.CREATED);
++        }else {
++            return new ResponseEntity(HttpStatus.BAD_REQUEST);
++        }
+     }
+ 
+     @Operation(
+@@ -75,7 +97,11 @@ public class BookingController {
+     @PutMapping("/{id}")
+     @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> updateBooking(@PathVariable UUID id, @RequestBody Booking booking){
+-        return bookingService.updateBooking(id, booking);
++        if(bookingService.updateBooking(id, booking) != null){
++            return new ResponseEntity(bookingService.updateBooking(id, booking), HttpStatus.OK);
++        }else {
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
+     }
+ 
+     @Operation(
+@@ -85,7 +111,11 @@ public class BookingController {
+     )
+     @PutMapping("/status/{id}")
+     public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
+-        return bookingService.updateBookingStatus(id, booking, token);
++        if(bookingService.updateBookingStatus(id, booking, token) != null){
++            return new ResponseEntity(HttpStatus.OK);
++        }else {
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
+     }
+ 
+     @Operation(
+@@ -96,7 +126,11 @@ public class BookingController {
+     @DeleteMapping("/{id}")
+     @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> deleteBooking(@PathVariable UUID id){
+-        return bookingService.deleteBooking(id);
++        if(bookingService.deleteBooking(id)){
++            return new ResponseEntity(HttpStatus.OK);
++        }else {
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
+     }
+ 
+ 
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+index ccc88c6..230c05f 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/BookingService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -10,9 +10,11 @@ import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.stereotype.Service;
+ 
++import java.awt.print.Book;
+ import java.io.IOException;
+ import java.security.GeneralSecurityException;
+ import java.time.LocalDate;
++import java.util.List;
+ import java.util.UUID;
+ 
+ @Service
+@@ -30,31 +32,35 @@ public class BookingService {
+ 
+ 
+     //getBookings
+-    public ResponseEntity getBookings() {
+-        return new ResponseEntity(bookingRepository.findAll(), HttpStatus.OK);
++    public List<Booking> getBookings() {
++        return (List<Booking>) bookingRepository.findAll();
+     }
+ 
+     //getbooking by id
+-    public ResponseEntity getBookingById(UUID id) {
+-        return new ResponseEntity(bookingRepository.findById(id), HttpStatus.OK);
++    public Booking getBookingById(UUID id) {
++        if(bookingRepository.existsById(id)){
++            return bookingRepository.findById(id).get();
++        }else{
++            return null;
++        }
+     }
+ 
+     //getBooking by user
+-    public ResponseEntity getBookingByUser(UUID id) {
++    public List<Booking> getBookingByUser(UUID id) {
+         boolean userExists = memberRepository.existsById(id);
+         if(userExists){
+-            return new ResponseEntity(bookingRepository.findAllByCreatorId(id), HttpStatus.OK);
++            return bookingRepository.findAllByCreatorId(id);
+         }else{
+-            return new ResponseEntity("User with given ID does not exist", HttpStatus.NOT_FOUND);
++            return null;
+         }
+     }
+ 
+     //getBooking by status
+-    public ResponseEntity getBookingByStatus(String status) {
+-        return new ResponseEntity(bookingRepository.findAllByStatus(status), HttpStatus.OK);
++    public List<Booking> getBookingByStatus(String status) {
++        return bookingRepository.findAllByStatus(status);
+     }
+ 
+-    public ResponseEntity createBooking(Booking booking, String token) throws GeneralSecurityException, IOException {
++    public Booking createBooking(Booking booking, String token) throws GeneralSecurityException, IOException {
+         token = token.substring(7);
+         DecodedJWT decode = jwtService.verifyJwt(token, true);
+         String userId = decode.getClaim("user_id").asString();
+@@ -63,16 +69,16 @@ public class BookingService {
+         booking.setCreator(member);
+ 
+         if(booking.getDate().isBefore(LocalDate.now())) {
+-            throw new IllegalArgumentException("Invalid date, date in the past in not possible");
++            return null;
+         }
+ 
+         bookingRepository.save(booking);
+-        return new ResponseEntity(booking, HttpStatus.OK);
++        return booking;
+     }
+ 
+ 
+     //updateBooking (Full booking update. Intended for admin emergency use)
+-    public ResponseEntity updateBooking(UUID id, Booking booking) {
++    public Booking updateBooking(UUID id, Booking booking) {
+         boolean bookingExists = bookingRepository.existsById(id);
+         if(bookingExists){
+             Booking bookingToUpdate = bookingRepository.findById(id).get();
+@@ -80,14 +86,14 @@ public class BookingService {
+             bookingToUpdate.setDate(booking.getDate());
+             bookingToUpdate.setStatus(booking.getStatus());
+             bookingRepository.save(bookingToUpdate);
+-            return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
++            return bookingToUpdate;
+         }else{
+-            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
++            return null;
+         }
+     }
+ 
+     //updateBookingStatus
+-    public ResponseEntity updateBookingStatus(UUID id, Booking booking, String token) throws GeneralSecurityException, IOException {
++    public Booking updateBookingStatus(UUID id, Booking booking, String token) throws GeneralSecurityException, IOException {
+         boolean bookingExists = bookingRepository.existsById(id);
+         token = token.substring(7);
+         DecodedJWT decoded = jwtService.verifyJwt(token, true);
+@@ -96,40 +102,40 @@ public class BookingService {
+         String email = decoded.getClaim("name").asString();
+         Member memberSelf = memberRepository.findByEmail(email).get();
+         if(!bookingExists){
+-            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
++            return null;
+         }else if(memberSelf.getRole().equals("ADMIN")){
+             Booking bookingToUpdate = bookingRepository.findById(id).get();
+             bookingToUpdate.setStatus(booking.getStatus());
+             bookingRepository.save(bookingToUpdate);
+-            return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
++            return bookingToUpdate;
+         }else if(bookingRepository.findById(id).get().getCreator().getId().equals(UUID.fromString(user_id)) && booking.getStatus().equals("CANCELLED")){
+             Booking bookingToUpdate = bookingRepository.findById(id).get();
+             bookingToUpdate.setStatus(booking.getStatus());
+             bookingRepository.save(bookingToUpdate);
+-            return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
++            return bookingToUpdate;
+         }else{
+-            return new ResponseEntity("You are not allowed to change the status of this booking", HttpStatus.FORBIDDEN);
++            return null;
+         }
+     }
+ 
+     //deleteBooking by id
+-    public ResponseEntity deleteBooking(UUID id) {
++    public boolean deleteBooking(UUID id) {
+         boolean bookingExists = bookingRepository.existsById(id);
+         if(bookingExists){
+             bookingRepository.deleteById(id);
+-            return new ResponseEntity(HttpStatus.OK);
++            return true;
+         }else{
+-            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
++            return false;
+         }
+     }
+ 
+ 
+-    public ResponseEntity<Booking> getBookingsByStatusAndUserId(String status, UUID userid) {
++    public List<Booking> getBookingsByStatusAndUserId(String status, UUID userid) {
+         boolean userExists = memberRepository.existsById(userid);
+         if(userExists){
+-            return new ResponseEntity(bookingRepository.findAllByStatusAndCreatorId(status, userid), HttpStatus.OK);
++            return bookingRepository.findAllByStatusAndCreatorId(status, userid);
+         }else{
+-            return new ResponseEntity("User with given ID does not exist", HttpStatus.NOT_FOUND);
++            return null;
+         }
+     }
+ }
+diff --git a/src/test/java/ch/ms/coworkingspace/BookingControllerIntegrationTest.java b/src/test/java/ch/ms/coworkingspace/BookingControllerIntegrationTest.java
+new file mode 100644
+index 0000000..1a99ef3
+--- /dev/null
++++ b/src/test/java/ch/ms/coworkingspace/BookingControllerIntegrationTest.java
+@@ -0,0 +1,2 @@
++package ch.ms.coworkingspace;
++
+
+commit 693f9379c870adf2512d57d0379dc8b53521325e
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 11:00:09 2022 +0200
+
+    fixed get booking by user id
+
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index 0bb1dd1..e8c2804 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -63,7 +63,7 @@ public class BookingController {
+     )
+     @PostMapping
+     @PreAuthorize("hasRole('ADMIN')")
+-    public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestBody Member member, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
++    public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
+         return bookingService.createBooking(booking, token);
+     }
+ 
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+index d7ab575..3b1ab0f 100644
+--- a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
++++ b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+@@ -14,4 +14,6 @@ public interface BookingRepository extends CrudRepository<Booking, UUID> {
+     List<Booking> findAllByStatus(String status);
+ 
+     List<Booking> findAllByStatusAndCreatorId(String status, UUID userid);
++
++    List<Booking> findAllByCreatorId(UUID id);
+ }
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+index c2fdd3f..ccc88c6 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/BookingService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -43,7 +43,7 @@ public class BookingService {
+     public ResponseEntity getBookingByUser(UUID id) {
+         boolean userExists = memberRepository.existsById(id);
+         if(userExists){
+-            return new ResponseEntity(bookingRepository.findByCreatorId(id), HttpStatus.OK);
++            return new ResponseEntity(bookingRepository.findAllByCreatorId(id), HttpStatus.OK);
+         }else{
+             return new ResponseEntity("User with given ID does not exist", HttpStatus.NOT_FOUND);
+         }
+
+commit 6378c20c0a4c47a93c2861db493ac6d43e67a521
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 10:48:42 2022 +0200
+
+    updated readme again
+
+diff --git a/README.md b/README.md
+index ed0e36c..715a4e3 100644
+--- a/README.md
++++ b/README.md
+@@ -1,7 +1,7 @@
+ <h2 align="center">ÜK Modul-223 - Co-working Space application</h2>
+ 
+   <p align="center">
+-    An application for a co-working space. The application is developed as the final practial assignement of the Modul 223 course at ZLI.:
++    An application for a co-working space. The application is developed as the final practial assignement of the Modul 223 course at ZLI.
+     <br />
+   </p>
+ <br>
+
+commit 1a7e14cb16f345b2c74c7071978de9606f95d46c
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 10:47:28 2022 +0200
+
+    updated readme
+
+diff --git a/README.md b/README.md
+index 89928df..ed0e36c 100644
+--- a/README.md
++++ b/README.md
+@@ -7,6 +7,10 @@
+ <br>
+ <br>
+ 
++Github repo: https://github.com/Maxi03milian/Uek-Modul223_Co-Working
++<br>
++
++
+ ### Built With
+ 
+ Major frameworks/libraries used to develop and run a demo of the application:
+
+commit 43a1baa801073702ab1005966283c6a19686ef87
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 10:39:42 2022 +0200
+
+    updatd service methods
+
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+index 4243c50..c2fdd3f 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/BookingService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -76,7 +76,6 @@ public class BookingService {
+         boolean bookingExists = bookingRepository.existsById(id);
+         if(bookingExists){
+             Booking bookingToUpdate = bookingRepository.findById(id).get();
+-            bookingToUpdate.setCreator(booking.getCreator());
+             bookingToUpdate.setDayDuration(booking.getDayDuration());
+             bookingToUpdate.setDate(booking.getDate());
+             bookingToUpdate.setStatus(booking.getStatus());
+@@ -109,7 +108,7 @@ public class BookingService {
+             bookingRepository.save(bookingToUpdate);
+             return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
+         }else{
+-return new ResponseEntity("You are not allowed to change the status of this booking", HttpStatus.FORBIDDEN);
++            return new ResponseEntity("You are not allowed to change the status of this booking", HttpStatus.FORBIDDEN);
+         }
+     }
+ 
+
+commit 35ecd434fa84eaa9429d100a4522836a137e6e98
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 09:30:45 2022 +0200
+
+    updated readme again
+
+diff --git a/README.md b/README.md
+index d620058..89928df 100644
+--- a/README.md
++++ b/README.md
+@@ -74,4 +74,4 @@ A Member can only make requests to the following endpoints:
+ * PUT /bookings/{id} -> update booking status (only where you are the creator) by ID (id)<br>
+   Requestbody {date, duration, status)}
+ 
+-For further information, please refer to the swagger documentation accompanying the project or Read the API endpoints documentation (from an earlier assignment).
++For further information, please refer to the swagger documentation accompanying the project or read the API endpoints documentation (from an earlier assignment).
+
+commit 92e24bc8290ec49e6cb068cb45e972b569ba5c5a
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 09:28:15 2022 +0200
+
+    updated readme
+
+diff --git a/README.md b/README.md
+index 95a0825..d620058 100644
+--- a/README.md
++++ b/README.md
+@@ -62,4 +62,16 @@ Therefore, the database <b>does not feature a Table for the location of bookings
+ ### Client Demo (Postman)
+ To be able to make requests to endpoints in a manner, corresponding to how an actual client would. There will be a Postman export in addition to the base Project
+ that can be used to make requests to the endpoints. The Postman export can be found in the root directory of the project.
+-
++To get a new JWT Token, you first need to log in as an existing user under /auth/login. In Postman, this can be found in the 'Auth' folder.
++After you have logged in, you can use the JWT Token in the 'Authorization' tab of Postman to make requests to the other endpoints.
++
++A Member can only make requests to the following endpoints:
++* POST /auth/login -> Log in as a user
++* PUT /users/{id} -> update user (only your own user) by ID (id) 
++  Requestbody {name, lastname, password)}
++* POST /bookings -> create new booking<br>
++    Requestbody {date, duration}
++* PUT /bookings/{id} -> update booking status (only where you are the creator) by ID (id)<br>
++  Requestbody {date, duration, status)}
++
++For further information, please refer to the swagger documentation accompanying the project or Read the API endpoints documentation (from an earlier assignment).
+
+commit a74c7baf083e7dbd29dfd195186885bf3b63e342
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 08:45:09 2022 +0200
+
+    added comments
+
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index ce25ece..0bb1dd1 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -80,7 +80,7 @@ public class BookingController {
+ 
+     @Operation(
+             summary = "Update the status from an existing booking",
+-            description = "Update information from a specific booking by ID.",
++            description = "Update information from a specific booking by ID. NOTE: The user can only update his own booking to 'CANCELLED'. Admin can do all actions",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @PutMapping("/status/{id}")
+
+commit 30c0ab0fe1dfeb84827105c682e7428b49e04e98
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Wed Sep 21 08:43:25 2022 +0200
+
+    added jwt validation for setting status
+    
+    Member can only change his own bookings to cancelled. Admin can to all actions
+
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index 4cc4990..ce25ece 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -84,9 +84,8 @@ public class BookingController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @PutMapping("/status/{id}")
+-    @PreAuthorize("hasRole('ADMIN')")
+-    public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking){
+-        return bookingService.updateBookingStatus(id, booking);
++    public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
++        return bookingService.updateBookingStatus(id, booking, token);
+     }
+ 
+     @Operation(
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+index 40e9889..4243c50 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/BookingService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -88,15 +88,28 @@ public class BookingService {
+     }
+ 
+     //updateBookingStatus
+-    public ResponseEntity updateBookingStatus(UUID id, Booking booking) {
++    public ResponseEntity updateBookingStatus(UUID id, Booking booking, String token) throws GeneralSecurityException, IOException {
+         boolean bookingExists = bookingRepository.existsById(id);
+-        if(bookingExists){
++        token = token.substring(7);
++        DecodedJWT decoded = jwtService.verifyJwt(token, true);
++        String user_id = decoded.getClaim("user_id").asString();
++        String[] scope = decoded.getClaim("scope").asArray(String.class);
++        String email = decoded.getClaim("name").asString();
++        Member memberSelf = memberRepository.findByEmail(email).get();
++        if(!bookingExists){
++            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
++        }else if(memberSelf.getRole().equals("ADMIN")){
++            Booking bookingToUpdate = bookingRepository.findById(id).get();
++            bookingToUpdate.setStatus(booking.getStatus());
++            bookingRepository.save(bookingToUpdate);
++            return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
++        }else if(bookingRepository.findById(id).get().getCreator().getId().equals(UUID.fromString(user_id)) && booking.getStatus().equals("CANCELLED")){
+             Booking bookingToUpdate = bookingRepository.findById(id).get();
+             bookingToUpdate.setStatus(booking.getStatus());
+             bookingRepository.save(bookingToUpdate);
+             return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
+         }else{
+-            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
++return new ResponseEntity("You are not allowed to change the status of this booking", HttpStatus.FORBIDDEN);
+         }
+     }
+ 
+
+commit ede06ef8f1a8a4a7d23ff54cc8a130812ebba673
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 16:08:17 2022 +0200
+
+    added register endpoint
+
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/AuthController.java b/src/main/java/ch/ms/coworkingspace/controller/AuthController.java
+index cebac48..6723dec 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/AuthController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/AuthController.java
+@@ -3,6 +3,8 @@ package ch.ms.coworkingspace.controller;
+ import ch.ms.coworkingspace.model.Member;
+ import ch.ms.coworkingspace.security.JwtServiceHMAC;
+ import ch.ms.coworkingspace.service.MemberService;
++import io.swagger.v3.oas.annotations.Operation;
++import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+ import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.web.bind.annotation.PostMapping;
+@@ -25,6 +27,11 @@ public class AuthController {
+         this.memberService = memberService;
+     }
+ 
++    @Operation(
++            summary = "Log in",
++            description = "Logs in a user and returns a JWT token.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @PostMapping("/login")
+     public ResponseEntity login(@RequestBody Member user) {
+         ArrayList<String> scopes = new ArrayList<String>();
+@@ -44,8 +51,15 @@ public class AuthController {
+         return new ResponseEntity(jwt, HttpStatus.OK);
+     }
+ 
+-   /* @PostMapping("/register")
++    @Operation(
++            summary = "Register",
++            description = "Registers a new user.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
++    @PostMapping("/register")
+     public ResponseEntity register(@RequestBody Member member){
++        return memberService.createUser(member);
++    }
++
+ 
+-    }*/
+ }
+diff --git a/src/main/java/ch/ms/coworkingspace/service/MemberService.java b/src/main/java/ch/ms/coworkingspace/service/MemberService.java
+index c346636..ad26517 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/MemberService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/MemberService.java
+@@ -70,6 +70,8 @@ public class MemberService {
+         if(userOptional.isPresent()) {
+             return new ResponseEntity("Email already used by different User", HttpStatus.CONFLICT);
+         }else{
++            member.setRole("MEMBER");
++            member.setId(UUID.randomUUID());
+             memberRepository.save(member);
+             return new ResponseEntity(member, HttpStatus.OK);
+         }
+
+commit d541403a5a31667952c9eb8970a2b60c5e6ffd9c
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 16:04:10 2022 +0200
+
+    added jwt validation for creating booking
+
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index f9fdb02..4cc4990 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -1,6 +1,7 @@
+ package ch.ms.coworkingspace.controller;
+ 
+ import ch.ms.coworkingspace.model.Booking;
++import ch.ms.coworkingspace.model.Member;
+ import ch.ms.coworkingspace.service.BookingService;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.security.access.prepost.PreAuthorize;
+@@ -9,6 +10,8 @@ import io.swagger.v3.oas.annotations.Operation;
+ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+ import io.swagger.v3.oas.annotations.tags.Tag;
+ 
++import java.io.IOException;
++import java.security.GeneralSecurityException;
+ import java.util.UUID;
+ 
+ 
+@@ -60,8 +63,8 @@ public class BookingController {
+     )
+     @PostMapping
+     @PreAuthorize("hasRole('ADMIN')")
+-    public ResponseEntity<Booking> createBooking(@RequestBody Booking booking){
+-        return bookingService.createBooking(booking);
++    public ResponseEntity<Booking> createBooking(@RequestBody Booking booking, @RequestBody Member member, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
++        return bookingService.createBooking(booking, token);
+     }
+ 
+     @Operation(
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+index b4e988c..40e9889 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/BookingService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -1,12 +1,18 @@
+ package ch.ms.coworkingspace.service;
+ 
+ import ch.ms.coworkingspace.model.Booking;
++import ch.ms.coworkingspace.model.Member;
+ import ch.ms.coworkingspace.repository.BookingRepository;
+ import ch.ms.coworkingspace.repository.MemberRepository;
++import ch.ms.coworkingspace.security.JwtServiceHMAC;
++import com.auth0.jwt.interfaces.DecodedJWT;
+ import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.stereotype.Service;
+ 
++import java.io.IOException;
++import java.security.GeneralSecurityException;
++import java.time.LocalDate;
+ import java.util.UUID;
+ 
+ @Service
+@@ -14,10 +20,12 @@ public class BookingService {
+ 
+     BookingRepository bookingRepository;
+     MemberRepository memberRepository;
++    JwtServiceHMAC jwtService;
+ 
+-    public BookingService(BookingRepository bookingRepository, MemberRepository memberRepository) {
++    public BookingService(BookingRepository bookingRepository, MemberRepository memberRepository, JwtServiceHMAC jwtService) {
+         this.bookingRepository = bookingRepository;
+         this.memberRepository = memberRepository;
++        this.jwtService = jwtService;
+     }
+ 
+ 
+@@ -46,13 +54,23 @@ public class BookingService {
+         return new ResponseEntity(bookingRepository.findAllByStatus(status), HttpStatus.OK);
+     }
+ 
+-    //createBooking (user auth)
+-    //TODO: add user to creator field
+-    public ResponseEntity createBooking(Booking booking) {
++    public ResponseEntity createBooking(Booking booking, String token) throws GeneralSecurityException, IOException {
++        token = token.substring(7);
++        DecodedJWT decode = jwtService.verifyJwt(token, true);
++        String userId = decode.getClaim("user_id").asString();
++        Member member = memberRepository.findById(UUID.fromString(userId)).get();
++        booking.setStatus("PENDING");
++        booking.setCreator(member);
++
++        if(booking.getDate().isBefore(LocalDate.now())) {
++            throw new IllegalArgumentException("Invalid date, date in the past in not possible");
++        }
++
+         bookingRepository.save(booking);
+         return new ResponseEntity(booking, HttpStatus.OK);
+     }
+ 
++
+     //updateBooking (Full booking update. Intended for admin emergency use)
+     public ResponseEntity updateBooking(UUID id, Booking booking) {
+         boolean bookingExists = bookingRepository.existsById(id);
+diff --git a/src/main/java/ch/ms/coworkingspace/service/MemberService.java b/src/main/java/ch/ms/coworkingspace/service/MemberService.java
+index 221ce77..c346636 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/MemberService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/MemberService.java
+@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
+ 
+ import java.io.IOException;
+ import java.security.GeneralSecurityException;
+-import java.sql.Array;
+ import java.util.List;
+ import java.util.Optional;
+ import java.util.UUID;
+
+commit e847cdbe5a2338b7321eb18325fd9a4f91a64f4d
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 15:50:10 2022 +0200
+
+    added token validation on user edit
+
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/MemberController.java b/src/main/java/ch/ms/coworkingspace/controller/MemberController.java
+index 39d2366..f1812d7 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/MemberController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/MemberController.java
+@@ -1,7 +1,15 @@
+ package ch.ms.coworkingspace.controller;
+ 
+ import ch.ms.coworkingspace.model.Member;
++import ch.ms.coworkingspace.security.JwtServiceHMAC;
+ import ch.ms.coworkingspace.service.MemberService;
++import com.auth0.jwt.JWT;
++import com.auth0.jwt.algorithms.Algorithm;
++import com.auth0.jwt.exceptions.JWTVerificationException;
++import com.auth0.jwt.interfaces.Claim;
++import com.auth0.jwt.interfaces.DecodedJWT;
++import com.fasterxml.jackson.databind.ObjectMapper;
++import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.security.access.prepost.PreAuthorize;
+ import org.springframework.web.bind.annotation.*;
+@@ -9,6 +17,9 @@ import io.swagger.v3.oas.annotations.Operation;
+ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+ import io.swagger.v3.oas.annotations.tags.Tag;
+ 
++import java.io.IOException;
++import java.security.GeneralSecurityException;
++import java.util.Optional;
+ import java.util.UUID;
+ 
+ @RestController
+@@ -18,8 +29,11 @@ public class MemberController {
+ 
+     MemberService memberService;
+ 
+-    public MemberController(MemberService memberService) {
++    JwtServiceHMAC jwtService;
++
++    public MemberController(MemberService memberService, JwtServiceHMAC jwtService) {
+         this.memberService = memberService;
++        this.jwtService = jwtService;
+     }
+ 
+     @Operation(
+@@ -60,10 +74,10 @@ public class MemberController {
+             description = "Update information from a specific user by ID.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @PreAuthorize("hasRole('ADMIN')")
++
+     @PutMapping("/{id}")
+-    public ResponseEntity<Member> updateUserById(@PathVariable UUID id, @RequestBody Member member){
+-        return memberService.updateUserById(id, member);
++    public ResponseEntity<Member> updateUserById(@PathVariable UUID id, @RequestBody Member member, @RequestHeader("Authorization") String token) throws GeneralSecurityException, IOException {
++        return memberService.updateUserById(id, member, token);
+     }
+ 
+     @Operation(
+diff --git a/src/main/java/ch/ms/coworkingspace/service/MemberService.java b/src/main/java/ch/ms/coworkingspace/service/MemberService.java
+index 25eb7b1..221ce77 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/MemberService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/MemberService.java
+@@ -2,10 +2,15 @@ package ch.ms.coworkingspace.service;
+ 
+ import ch.ms.coworkingspace.model.Member;
+ import ch.ms.coworkingspace.repository.MemberRepository;
++import ch.ms.coworkingspace.security.JwtServiceHMAC;
++import com.auth0.jwt.interfaces.DecodedJWT;
+ import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.stereotype.Service;
+ 
++import java.io.IOException;
++import java.security.GeneralSecurityException;
++import java.sql.Array;
+ import java.util.List;
+ import java.util.Optional;
+ import java.util.UUID;
+@@ -14,9 +19,11 @@ import java.util.UUID;
+ public class MemberService {
+ 
+     MemberRepository memberRepository;
++    JwtServiceHMAC jwtService;
+ 
+-    public MemberService(MemberRepository memberRepository) {
++    public MemberService(MemberRepository memberRepository, JwtServiceHMAC jwtService) {
+         this.memberRepository = memberRepository;
++        this.jwtService = jwtService;
+     }
+ 
+     public ResponseEntity<Member>  getAllUsers() {
+@@ -34,19 +41,28 @@ public class MemberService {
+         }
+     }
+ 
+-    public ResponseEntity<Member> updateUserById(UUID id, Member member) {
++    public ResponseEntity<Member> updateUserById(UUID id, Member member, String token) throws GeneralSecurityException, IOException {
+         boolean userExists = memberRepository.existsById(id);
+-        if(userExists){
++        token = token.substring(7);
++        DecodedJWT decoded = jwtService.verifyJwt(token, true);
++        String user_id = decoded.getClaim("user_id").asString();
++        String[] scope = decoded.getClaim("scope").asArray(String.class);
++        String email = decoded.getClaim("name").asString();
++        String role = scope[0];
++
++        Member memberSelf = memberRepository.findByEmail(email).get();
++        Member updateMember = memberRepository.findById(id).get();
++        if(!userExists){
++            return new ResponseEntity("User with given ID not found", HttpStatus.BAD_REQUEST);
++        }else if(memberSelf.getRole().equals("ADMIN") || updateMember.getId().equals(UUID.fromString(user_id))){
+             Member memberToUpdate = memberRepository.findById(id).get();
+             memberToUpdate.setName(member.getName());
+             memberToUpdate.setLastname(member.getLastname());
+-            memberToUpdate.setEmail(member.getEmail());
+             memberToUpdate.setPassword(member.getPassword());
+-            memberToUpdate.setRole(member.getRole());
+             memberRepository.save(memberToUpdate);
+             return new ResponseEntity(memberToUpdate, HttpStatus.OK);
+-        }else{
+-            return new ResponseEntity("User with given ID not found", HttpStatus.BAD_REQUEST);
++        } else {
++            return new ResponseEntity("You are not allowed to update this user", HttpStatus.BAD_REQUEST);
+         }
+     }
+ 
+
+commit 2d56b3097afff9b02797ba46dbcd8db96fec8c93
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 14:11:56 2022 +0200
+
+    added JWT authentication and member authorisation
+
+diff --git a/init/01.sql b/init/01.sql
+index 91afddc..22471b9 100644
+--- a/init/01.sql
++++ b/init/01.sql
+@@ -53,8 +53,8 @@ VALUES (
+     (
+         'e1eec954-6ef4-4926-8183-7575af189f2a',
+         'Johannes',
+-        'Höffliger',
+-        'johannes.höffliger@gmail.com',
++        'Hoeffliger',
++        'johannes.hoeffliger@gmail.com',
+         'test1234',
+         'MEMBER'
+     );
+diff --git a/mvnw.cmd b/mvnw.cmd
+index 1d8ab01..51987a3 100644
+--- a/mvnw.cmd
++++ b/mvnw.cmd
+@@ -43,7 +43,7 @@ title %0
+ @REM set %HOME% to equivalent of $HOME
+ if "%HOME%" == "" (set "HOME=%HOMEDRIVE%%HOMEPATH%")
+ 
+-@REM Execute a user defined script before this one
++@REM Execute a member defined script before this one
+ if not "%MAVEN_SKIP_RC%" == "" goto skipRcPre
+ @REM check for pre script, once with legacy .bat ending and once with .cmd ending
+ if exist "%USERPROFILE%\mavenrc_pre.bat" call "%USERPROFILE%\mavenrc_pre.bat" %*
+diff --git a/pom.xml b/pom.xml
+index 2ded157..f000545 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -45,6 +45,10 @@
+ 			<artifactId>mysql-connector-java</artifactId>
+ 			<scope>runtime</scope>
+ 		</dependency>
++		<dependency>
++			<groupId>org.springframework.boot</groupId>
++			<artifactId>spring-boot-starter-security</artifactId>
++		</dependency>
+ 	</dependencies>
+ 	<build>
+ 		<plugins>
+diff --git a/src/main/java/ch/ms/coworkingspace/configuration/SecurityConfig.java b/src/main/java/ch/ms/coworkingspace/configuration/SecurityConfig.java
+new file mode 100644
+index 0000000..8c35af1
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/configuration/SecurityConfig.java
+@@ -0,0 +1,50 @@
++package ch.ms.coworkingspace.configuration;
++
++import ch.ms.coworkingspace.repository.MemberRepository;
++import ch.ms.coworkingspace.security.JwtAuthenticationEntryPoint;
++import ch.ms.coworkingspace.security.JwtAuthenticationFilter;
++import ch.ms.coworkingspace.security.JwtServiceHMAC;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Configuration;
++import org.springframework.http.HttpMethod;
++import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
++import org.springframework.security.config.annotation.web.builders.HttpSecurity;
++import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
++import org.springframework.security.config.http.SessionCreationPolicy;
++import org.springframework.security.web.SecurityFilterChain;
++import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
++
++@Configuration
++@EnableWebSecurity
++@EnableGlobalMethodSecurity(prePostEnabled = true)
++public class SecurityConfig {
++
++    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
++    private final JwtServiceHMAC jwtService;
++    private final MemberRepository memberRepository;
++
++    public SecurityConfig(JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint, JwtServiceHMAC jwtService, MemberRepository memberRepository) {
++        this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
++        this.jwtService = jwtService;
++        this.memberRepository = memberRepository;
++    }
++
++    @Bean
++    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
++        return http.csrf().disable()
++                .authorizeRequests()
++                .antMatchers("/auth/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**", "/console/**").permitAll()
++                .antMatchers(HttpMethod.OPTIONS).permitAll()
++                .anyRequest().authenticated()
++                .and()
++                .exceptionHandling().authenticationEntryPoint(jwtAuthenticationEntryPoint)
++                .and()
++                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
++                .and()
++                .addFilterBefore(new JwtAuthenticationFilter(jwtService, memberRepository), UsernamePasswordAuthenticationFilter.class)
++                .headers().frameOptions().disable()
++                .and()
++                .build();
++    }
++
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/AuthController.java b/src/main/java/ch/ms/coworkingspace/controller/AuthController.java
+new file mode 100644
+index 0000000..cebac48
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/controller/AuthController.java
+@@ -0,0 +1,51 @@
++package ch.ms.coworkingspace.controller;
++
++import ch.ms.coworkingspace.model.Member;
++import ch.ms.coworkingspace.security.JwtServiceHMAC;
++import ch.ms.coworkingspace.service.MemberService;
++import org.springframework.http.HttpStatus;
++import org.springframework.http.ResponseEntity;
++import org.springframework.web.bind.annotation.PostMapping;
++import org.springframework.web.bind.annotation.RequestBody;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RestController;
++
++import java.util.ArrayList;
++import java.util.Optional;
++import java.util.UUID;
++
++@RestController
++@RequestMapping("/auth")
++public class AuthController {
++    JwtServiceHMAC jwtService;
++    MemberService memberService;
++
++    public AuthController(JwtServiceHMAC jwtService, MemberService memberService) {
++        this.jwtService = jwtService;
++        this.memberService = memberService;
++    }
++
++    @PostMapping("/login")
++    public ResponseEntity login(@RequestBody Member user) {
++        ArrayList<String> scopes = new ArrayList<String>();
++        Optional<Member> member = memberService.getByEmailAndPassword(user.getEmail(), user.getPassword());
++        if(member.isEmpty()){
++            throw new IllegalArgumentException("Wrong username or Password");
++        }
++
++        if (member.get().getRole().equals("MEMBER")) {
++            scopes.add("MEMBER");
++        }else if(member.get().getRole().equals("ADMIN")){
++            scopes.add("ADMIN");
++        }
++
++        String id = UUID.randomUUID().toString();
++        var jwt = jwtService.createNewJWT(id, member.get().getId().toString(), member.get().getEmail(), scopes);
++        return new ResponseEntity(jwt, HttpStatus.OK);
++    }
++
++   /* @PostMapping("/register")
++    public ResponseEntity register(@RequestBody Member member){
++
++    }*/
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index d4babcc..f9fdb02 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -3,6 +3,7 @@ package ch.ms.coworkingspace.controller;
+ import ch.ms.coworkingspace.model.Booking;
+ import ch.ms.coworkingspace.service.BookingService;
+ import org.springframework.http.ResponseEntity;
++import org.springframework.security.access.prepost.PreAuthorize;
+ import org.springframework.web.bind.annotation.*;
+ import io.swagger.v3.oas.annotations.Operation;
+ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+@@ -28,6 +29,7 @@ public class BookingController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @GetMapping
++    @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> getAllBookings(@RequestParam(value = "status", required = false) String status, @RequestParam(value = "userid", required = false) UUID userid){
+         if(status != null && userid != null){
+             return bookingService.getBookingsByStatusAndUserId(status, userid);
+@@ -46,6 +48,7 @@ public class BookingController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @GetMapping("/{id}")
++    @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> getBookingById(@PathVariable UUID id){
+         return bookingService.getBookingById(id);
+     }
+@@ -56,6 +59,7 @@ public class BookingController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @PostMapping
++    @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking){
+         return bookingService.createBooking(booking);
+     }
+@@ -66,6 +70,7 @@ public class BookingController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @PutMapping("/{id}")
++    @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> updateBooking(@PathVariable UUID id, @RequestBody Booking booking){
+         return bookingService.updateBooking(id, booking);
+     }
+@@ -76,6 +81,7 @@ public class BookingController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @PutMapping("/status/{id}")
++    @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking){
+         return bookingService.updateBookingStatus(id, booking);
+     }
+@@ -86,6 +92,7 @@ public class BookingController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @DeleteMapping("/{id}")
++    @PreAuthorize("hasRole('ADMIN')")
+     public ResponseEntity<Booking> deleteBooking(@PathVariable UUID id){
+         return bookingService.deleteBooking(id);
+     }
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/UserController.java b/src/main/java/ch/ms/coworkingspace/controller/MemberController.java
+similarity index 58%
+rename from src/main/java/ch/ms/coworkingspace/controller/UserController.java
+rename to src/main/java/ch/ms/coworkingspace/controller/MemberController.java
+index dd4bb04..39d2366 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/UserController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/MemberController.java
+@@ -1,25 +1,25 @@
+ package ch.ms.coworkingspace.controller;
+ 
+-import ch.ms.coworkingspace.model.User;
+-import ch.ms.coworkingspace.service.UserService;
++import ch.ms.coworkingspace.model.Member;
++import ch.ms.coworkingspace.service.MemberService;
+ import org.springframework.http.ResponseEntity;
++import org.springframework.security.access.prepost.PreAuthorize;
+ import org.springframework.web.bind.annotation.*;
+ import io.swagger.v3.oas.annotations.Operation;
+ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+ import io.swagger.v3.oas.annotations.tags.Tag;
+ 
+-import java.util.List;
+ import java.util.UUID;
+ 
+ @RestController
+ @RequestMapping("/users")
+ @Tag(name = "Users", description = "User management endpoints")
+-public class UserController {
++public class MemberController {
+ 
+-    UserService userService;
++    MemberService memberService;
+ 
+-    public UserController(UserService userService) {
+-        this.userService = userService;
++    public MemberController(MemberService memberService) {
++        this.memberService = memberService;
+     }
+ 
+     @Operation(
+@@ -28,8 +28,9 @@ public class UserController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @GetMapping
+-    public ResponseEntity<User> getAllUsers(){
+-        return userService.getAllUsers();
++    @PreAuthorize("hasRole('ADMIN')")
++    public ResponseEntity<Member> getAllUsers(){
++        return memberService.getAllUsers();
+     }
+ 
+     @Operation(
+@@ -38,8 +39,9 @@ public class UserController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @GetMapping("/{id}")
+-    public ResponseEntity<User> getUserById(@PathVariable UUID id){
+-        return userService.getUserById(id);
++    @PreAuthorize("hasRole('ADMIN')")
++    public ResponseEntity<Member> getUserById(@PathVariable UUID id){
++        return memberService.getUserById(id);
+     }
+ 
+     @Operation(
+@@ -47,9 +49,10 @@ public class UserController {
+             description = "Creates a new user in database.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
++    @PreAuthorize("hasRole('ADMIN')")
+     @PostMapping
+-    public ResponseEntity<User> createUser(@RequestBody User user){
+-        return userService.createUser(user);
++    public ResponseEntity<Member> createUser(@RequestBody Member member){
++        return memberService.createUser(member);
+     }
+ 
+     @Operation(
+@@ -57,9 +60,10 @@ public class UserController {
+             description = "Update information from a specific user by ID.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
++    @PreAuthorize("hasRole('ADMIN')")
+     @PutMapping("/{id}")
+-    public ResponseEntity<User> updateUserById(@PathVariable UUID id, @RequestBody User user){
+-        return userService.updateUserById(id, user);
++    public ResponseEntity<Member> updateUserById(@PathVariable UUID id, @RequestBody Member member){
++        return memberService.updateUserById(id, member);
+     }
+ 
+     @Operation(
+@@ -68,8 +72,9 @@ public class UserController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @DeleteMapping("/{id}")
+-    public ResponseEntity<User> deleteUserById(@PathVariable UUID id){
+-        return userService.deleteUserById(id);
++    @PreAuthorize("hasRole('ADMIN')")
++    public ResponseEntity<Member> deleteUserById(@PathVariable UUID id){
++        return memberService.deleteUserById(id);
+     }
+ 
+ 
+diff --git a/src/main/java/ch/ms/coworkingspace/model/Booking.java b/src/main/java/ch/ms/coworkingspace/model/Booking.java
+index 8af416e..8087f7f 100644
+--- a/src/main/java/ch/ms/coworkingspace/model/Booking.java
++++ b/src/main/java/ch/ms/coworkingspace/model/Booking.java
+@@ -2,7 +2,6 @@ package ch.ms.coworkingspace.model;
+ 
+ import org.hibernate.annotations.GenericGenerator;
+ import org.hibernate.annotations.Type;
+-import org.hibernate.type.LocalDateType;
+ 
+ import javax.persistence.*;
+ import java.time.LocalDate;
+@@ -19,7 +18,7 @@ public class Booking {
+     private UUID id = UUID.randomUUID();
+     @ManyToOne
+     @JoinColumn(name = "creator", referencedColumnName = "id")
+-    private User creator;
++    private Member creator;
+     @Column(name = "day_duration", nullable = false)
+     private float dayDuration;
+     @Column(name = "date", nullable = false)
+@@ -31,7 +30,7 @@ public class Booking {
+     public Booking() {
+     }
+ 
+-    public Booking(User creator, float dayDuration, LocalDate date, String status) {
++    public Booking(Member creator, float dayDuration, LocalDate date, String status) {
+         this.creator = creator;
+         this.dayDuration = dayDuration;
+         this.date = date;
+@@ -45,11 +44,11 @@ public class Booking {
+         this.id = id;
+     }
+ 
+-    public User getCreator() {
++    public Member getCreator() {
+         return creator;
+     }
+ 
+-    public void setCreator(User creator) {
++    public void setCreator(Member creator) {
+         this.creator = creator;
+     }
+ 
+diff --git a/src/main/java/ch/ms/coworkingspace/model/User.java b/src/main/java/ch/ms/coworkingspace/model/Member.java
+similarity index 93%
+rename from src/main/java/ch/ms/coworkingspace/model/User.java
+rename to src/main/java/ch/ms/coworkingspace/model/Member.java
+index 2dbbe45..23d47a6 100644
+--- a/src/main/java/ch/ms/coworkingspace/model/User.java
++++ b/src/main/java/ch/ms/coworkingspace/model/Member.java
+@@ -7,7 +7,7 @@ import javax.persistence.*;
+ import java.util.UUID;
+ 
+ @Entity(name = "member")
+-public class User {
++public class Member {
+ 
+     @Id
+     @GeneratedValue(generator = "UUID")
+@@ -28,10 +28,10 @@ public class User {
+     private String role = "MEMBER";
+ 
+ 
+-    public User() {
++    public Member() {
+     }
+ 
+-    public User(String name, String lastname, String email, String password, String role) {
++    public Member(String name, String lastname, String email, String password, String role) {
+         this.name = name;
+         this.lastname = lastname;
+         this.email = email;
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/MemberRepository.java b/src/main/java/ch/ms/coworkingspace/repository/MemberRepository.java
+new file mode 100644
+index 0000000..ce33299
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/repository/MemberRepository.java
+@@ -0,0 +1,16 @@
++package ch.ms.coworkingspace.repository;
++
++import ch.ms.coworkingspace.model.Member;
++import org.springframework.data.repository.CrudRepository;
++import org.springframework.stereotype.Repository;
++
++import java.util.Optional;
++import java.util.UUID;
++
++@Repository
++public interface MemberRepository extends CrudRepository<Member, UUID> {
++
++    Optional<Member> findByEmail(String email);
++
++    Optional<Member> findByEmailAndPassword(String email, String password);
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java b/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
+deleted file mode 100644
+index c303df2..0000000
+--- a/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
++++ /dev/null
+@@ -1,14 +0,0 @@
+-package ch.ms.coworkingspace.repository;
+-
+-import ch.ms.coworkingspace.model.User;
+-import org.springframework.data.repository.CrudRepository;
+-import org.springframework.stereotype.Repository;
+-
+-import java.util.Optional;
+-import java.util.UUID;
+-
+-@Repository
+-public interface UserRepository extends CrudRepository<User, UUID> {
+-
+-    Optional<User> findByEmail(String email);
+-}
+diff --git a/src/main/java/ch/ms/coworkingspace/security/JwtAuthenticationEntryPoint.java b/src/main/java/ch/ms/coworkingspace/security/JwtAuthenticationEntryPoint.java
+new file mode 100644
+index 0000000..3391e76
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/security/JwtAuthenticationEntryPoint.java
+@@ -0,0 +1,25 @@
++package ch.ms.coworkingspace.security;
++
++import org.springframework.security.core.AuthenticationException;
++import org.springframework.security.web.AuthenticationEntryPoint;
++import org.springframework.stereotype.Component;
++
++import javax.servlet.http.HttpServletRequest;
++import javax.servlet.http.HttpServletResponse;
++import java.io.IOException;
++import java.io.Serializable;
++
++
++@Component
++public
++class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint, Serializable {
++
++    @Override
++    public void commence(
++            HttpServletRequest request,
++            HttpServletResponse response,
++            AuthenticationException authException
++    ) throws IOException {
++        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
++    }
++}
+\ No newline at end of file
+diff --git a/src/main/java/ch/ms/coworkingspace/security/JwtAuthenticationFilter.java b/src/main/java/ch/ms/coworkingspace/security/JwtAuthenticationFilter.java
+new file mode 100644
+index 0000000..eaa1465
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/security/JwtAuthenticationFilter.java
+@@ -0,0 +1,68 @@
++package ch.ms.coworkingspace.security;
++
++import ch.ms.coworkingspace.model.Member;
++import ch.ms.coworkingspace.repository.MemberRepository;
++import com.auth0.jwt.exceptions.JWTVerificationException;
++import com.auth0.jwt.interfaces.DecodedJWT;
++import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
++import org.springframework.security.core.context.SecurityContextHolder;
++import org.springframework.security.core.userdetails.UserDetails;
++import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
++import org.springframework.web.filter.OncePerRequestFilter;
++
++import javax.servlet.FilterChain;
++import javax.servlet.ServletException;
++import javax.servlet.http.HttpServletRequest;
++import javax.servlet.http.HttpServletResponse;
++import java.io.IOException;
++import java.security.GeneralSecurityException;
++import java.util.ArrayList;
++import java.util.UUID;
++
++public class JwtAuthenticationFilter extends OncePerRequestFilter {
++
++    private final JwtServiceHMAC jwtService;
++    private final MemberRepository memberRepository;
++
++    public JwtAuthenticationFilter(JwtServiceHMAC jwtService, MemberRepository memberRepository) {
++        this.jwtService = jwtService;
++        this.memberRepository = memberRepository;
++    }
++
++    @Override
++    public void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws IOException, ServletException {
++
++        String authToken = jwtService.resolveKey(request);
++        UUID userId = null;
++        var requestedAuthorities = new ArrayList<String>();
++
++        if (authToken != null) {
++            DecodedJWT decoded;
++            try {
++                decoded = jwtService.verifyJwt(authToken, true);
++                userId = UUID.fromString(decoded.getClaim("user_id").asString());
++                requestedAuthorities = jwtService.getRequestedAuthorities(decoded);
++            } catch (GeneralSecurityException e) {
++                throw new RuntimeException(e);
++            }
++        }
++
++        if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
++            var optionalUser = memberRepository.findById(userId);
++
++            if (optionalUser.isEmpty()) {
++                throw new JWTVerificationException("Unauthorized");
++            }
++
++            Member member = optionalUser.get();
++
++            UserDetails userDetails = jwtService.getUserDetails(member, requestedAuthorities);
++            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails, "", userDetails.getAuthorities());
++            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
++            logger.debug("authenticated user $userId, setting security context");
++            SecurityContextHolder.getContext().setAuthentication(authentication);
++        }
++
++        chain.doFilter(request, response);
++    }
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/security/JwtServiceHMAC.java b/src/main/java/ch/ms/coworkingspace/security/JwtServiceHMAC.java
+new file mode 100644
+index 0000000..5926a2d
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/security/JwtServiceHMAC.java
+@@ -0,0 +1,146 @@
++package ch.ms.coworkingspace.security;
++
++import ch.ms.coworkingspace.model.Member;
++import ch.ms.coworkingspace.repository.MemberRepository;
++import com.auth0.jwt.JWT;
++import com.auth0.jwt.JWTCreator;
++import com.auth0.jwt.algorithms.Algorithm;
++import com.auth0.jwt.exceptions.AlgorithmMismatchException;
++import com.auth0.jwt.exceptions.InvalidClaimException;
++import com.auth0.jwt.exceptions.SignatureVerificationException;
++import com.auth0.jwt.exceptions.TokenExpiredException;
++import com.auth0.jwt.interfaces.DecodedJWT;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.security.core.authority.SimpleGrantedAuthority;
++import org.springframework.security.core.userdetails.User;
++import org.springframework.security.core.userdetails.UserDetails;
++import org.springframework.security.core.userdetails.UserDetailsService;
++import org.springframework.security.core.userdetails.UsernameNotFoundException;
++import org.springframework.stereotype.Service;
++
++import javax.servlet.http.HttpServletRequest;
++import java.io.IOException;
++import java.security.GeneralSecurityException;
++import java.time.LocalDateTime;
++import java.time.ZoneId;
++import java.util.ArrayList;
++import java.util.Date;
++import java.util.List;
++import java.util.UUID;
++
++@Service
++public class JwtServiceHMAC implements UserDetailsService {
++    @Autowired
++    private MemberRepository memberRepository;
++
++    private final String secret = "YcMyGyq?q&SAy86MR!h";
++
++    public UserDetails getUserDetails(Member user, List<String> requestedAuthorities) {
++        return new User(user.getId().toString(), "", getAuthority(requestedAuthorities));
++    }
++
++    @Override
++    public UserDetails loadUserByUsername(String userId) throws UsernameNotFoundException {
++        Member user = memberRepository.findById(UUID.fromString(userId)).orElseGet(null);
++        if (user == null) {
++            throw new UsernameNotFoundException("User not found");
++        }
++
++        return new User(user.getId().toString(), "", new ArrayList<SimpleGrantedAuthority>());
++    }
++
++    public List<SimpleGrantedAuthority> getAuthority(List<String> requestedAuthorities) {
++        return requestedAuthorities.stream().map(SimpleGrantedAuthority::new).toList();
++    }
++
++    public ArrayList<String> getRequestedAuthorities(DecodedJWT decoded) {
++        var rolesRaw = decoded.getClaim("roles").asList(String.class);
++        if (rolesRaw == null) {
++            rolesRaw = new ArrayList<>();
++        }
++        var scopesRaw = decoded.getClaim("scope").asList(String.class);
++        if (scopesRaw == null) {
++            scopesRaw = new ArrayList<>();
++        }
++
++        ArrayList requestedAuthorities = new ArrayList<String>();
++        requestedAuthorities.addAll(rolesRaw.stream().map(role -> "ROLE_" + role).toList());
++        requestedAuthorities.addAll(scopesRaw.stream().map(scope -> "ROLE_" + scope).toList());
++
++        return requestedAuthorities;
++    }
++
++    /**
++     * Perform the verification against the given Token
++     *
++     * @param encodedJwt        to verify.
++     * @param expectAccessToken is the provided token an access token.
++     * @return a verified and decoded JWT.
++     * @throws AlgorithmMismatchException     if the algorithm stated in the token's header it's not equal to the one defined in the JWTVerifier.
++     * @throws SignatureVerificationException if the signature is invalid.
++     * @throws TokenExpiredException          if the token has expired.
++     * @throws InvalidClaimException          if a claim contained a different value than the expected one.
++     */
++    public DecodedJWT verifyJwt(String encodedJwt, Boolean expectAccessToken) throws AlgorithmMismatchException, SignatureVerificationException, TokenExpiredException, InvalidClaimException, GeneralSecurityException, IOException {
++        var algorithm = Algorithm.HMAC512(getSecret());
++
++        var verifier = JWT.require(algorithm).withClaim("typ", "Bearer").build();
++
++        if (!expectAccessToken) {
++            verifier = JWT.require(algorithm).withClaim("typ", "Refresh").build();
++        }
++
++        return verifier.verify(encodedJwt);
++    }
++
++    public String getSecret() {
++        return secret;
++    }
++
++    public String resolveKey(HttpServletRequest request) {
++        String bearerToken = request.getHeader("Authorization");
++        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
++            return bearerToken.substring(7);
++        } else {
++            return null;
++        }
++    }
++
++    public String createNewJWT(String JWTId, String userId, String name, List<String> scopes) {
++        LocalDateTime now = LocalDateTime.now();
++
++        JWTCreator.Builder newJWT = JWT.create();
++        newJWT.withClaim("jti", JWTId);
++        newJWT.withClaim("name", name);
++        newJWT.withClaim("user_id", userId);
++        newJWT.withClaim("typ", "Bearer");
++        newJWT.withClaim("scope", scopes);
++        newJWT.withIssuedAt(convertToDate(now));
++        newJWT.withExpiresAt(convertToDate(now.plusDays(1)));
++
++        Algorithm algorithm = Algorithm.HMAC512(getSecret());
++
++        return newJWT.sign(algorithm);
++    }
++
++    public String createNewJWTRefresh(String JWTId, String userId) {
++        LocalDateTime now = LocalDateTime.now();
++
++        JWTCreator.Builder newJWT = JWT.create();
++        newJWT.withClaim("jti", JWTId);
++        newJWT.withClaim("typ", "Refresh");
++        newJWT.withClaim("user_id", userId);
++        newJWT.withIssuedAt(convertToDate(now));
++        newJWT.withExpiresAt(convertToDate(now.plusDays(14)));
++
++        Algorithm algorithm = Algorithm.HMAC512(getSecret());
++
++        return newJWT.sign(algorithm);
++    }
++
++    private Date convertToDate(LocalDateTime dateToConvert) {
++        return Date
++                .from(dateToConvert.atZone(ZoneId.systemDefault())
++                        .toInstant());
++    }
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+index 2077a0c..b4e988c 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/BookingService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -2,7 +2,7 @@ package ch.ms.coworkingspace.service;
+ 
+ import ch.ms.coworkingspace.model.Booking;
+ import ch.ms.coworkingspace.repository.BookingRepository;
+-import ch.ms.coworkingspace.repository.UserRepository;
++import ch.ms.coworkingspace.repository.MemberRepository;
+ import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.stereotype.Service;
+@@ -13,11 +13,11 @@ import java.util.UUID;
+ public class BookingService {
+ 
+     BookingRepository bookingRepository;
+-    UserRepository userRepository;
++    MemberRepository memberRepository;
+ 
+-    public BookingService(BookingRepository bookingRepository, UserRepository userRepository) {
++    public BookingService(BookingRepository bookingRepository, MemberRepository memberRepository) {
+         this.bookingRepository = bookingRepository;
+-        this.userRepository = userRepository;
++        this.memberRepository = memberRepository;
+     }
+ 
+ 
+@@ -33,7 +33,7 @@ public class BookingService {
+ 
+     //getBooking by user
+     public ResponseEntity getBookingByUser(UUID id) {
+-        boolean userExists = userRepository.existsById(id);
++        boolean userExists = memberRepository.existsById(id);
+         if(userExists){
+             return new ResponseEntity(bookingRepository.findByCreatorId(id), HttpStatus.OK);
+         }else{
+@@ -95,7 +95,7 @@ public class BookingService {
+ 
+ 
+     public ResponseEntity<Booking> getBookingsByStatusAndUserId(String status, UUID userid) {
+-        boolean userExists = userRepository.existsById(userid);
++        boolean userExists = memberRepository.existsById(userid);
+         if(userExists){
+             return new ResponseEntity(bookingRepository.findAllByStatusAndCreatorId(status, userid), HttpStatus.OK);
+         }else{
+diff --git a/src/main/java/ch/ms/coworkingspace/service/MemberService.java b/src/main/java/ch/ms/coworkingspace/service/MemberService.java
+new file mode 100644
+index 0000000..25eb7b1
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/service/MemberService.java
+@@ -0,0 +1,76 @@
++package ch.ms.coworkingspace.service;
++
++import ch.ms.coworkingspace.model.Member;
++import ch.ms.coworkingspace.repository.MemberRepository;
++import org.springframework.http.HttpStatus;
++import org.springframework.http.ResponseEntity;
++import org.springframework.stereotype.Service;
++
++import java.util.List;
++import java.util.Optional;
++import java.util.UUID;
++
++@Service
++public class MemberService {
++
++    MemberRepository memberRepository;
++
++    public MemberService(MemberRepository memberRepository) {
++        this.memberRepository = memberRepository;
++    }
++
++    public ResponseEntity<Member>  getAllUsers() {
++        List<Member> memberList = (List<Member>) memberRepository.findAll();
++        return new ResponseEntity(memberList, HttpStatus.OK);
++    }
++
++    public ResponseEntity<Member> getUserById(UUID id) {
++        boolean userExists = memberRepository.existsById(id);
++        if(userExists){
++            Member member = memberRepository.findById(id).get();
++            return new ResponseEntity(member, HttpStatus.OK);
++        }else{
++            return new ResponseEntity("User with given ID not found", HttpStatus.BAD_REQUEST);
++        }
++    }
++
++    public ResponseEntity<Member> updateUserById(UUID id, Member member) {
++        boolean userExists = memberRepository.existsById(id);
++        if(userExists){
++            Member memberToUpdate = memberRepository.findById(id).get();
++            memberToUpdate.setName(member.getName());
++            memberToUpdate.setLastname(member.getLastname());
++            memberToUpdate.setEmail(member.getEmail());
++            memberToUpdate.setPassword(member.getPassword());
++            memberToUpdate.setRole(member.getRole());
++            memberRepository.save(memberToUpdate);
++            return new ResponseEntity(memberToUpdate, HttpStatus.OK);
++        }else{
++            return new ResponseEntity("User with given ID not found", HttpStatus.BAD_REQUEST);
++        }
++    }
++
++    public ResponseEntity<Member> createUser(Member member) {
++        Optional<Member> userOptional = memberRepository.findByEmail(member.getEmail());
++        if(userOptional.isPresent()) {
++            return new ResponseEntity("Email already used by different User", HttpStatus.CONFLICT);
++        }else{
++            memberRepository.save(member);
++            return new ResponseEntity(member, HttpStatus.OK);
++        }
++    }
++
++    public ResponseEntity<Member> deleteUserById(UUID id) {
++        boolean userExists = memberRepository.existsById(id);
++        if(userExists){
++            memberRepository.deleteById(id);
++            return new ResponseEntity(HttpStatus.OK);
++        }else{
++            return new ResponseEntity("User with given ID does not exist", HttpStatus.BAD_REQUEST);
++        }
++    }
++
++    public Optional<Member> getByEmailAndPassword(String email, String password) {
++        return memberRepository.findByEmailAndPassword(email, password);
++    }
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/service/UserService.java b/src/main/java/ch/ms/coworkingspace/service/UserService.java
+deleted file mode 100644
+index a49a8cf..0000000
+--- a/src/main/java/ch/ms/coworkingspace/service/UserService.java
++++ /dev/null
+@@ -1,72 +0,0 @@
+-package ch.ms.coworkingspace.service;
+-
+-import ch.ms.coworkingspace.model.User;
+-import ch.ms.coworkingspace.repository.UserRepository;
+-import org.springframework.http.HttpStatus;
+-import org.springframework.http.ResponseEntity;
+-import org.springframework.stereotype.Service;
+-
+-import java.util.List;
+-import java.util.Optional;
+-import java.util.UUID;
+-
+-@Service
+-public class UserService {
+-
+-    UserRepository userRepository;
+-
+-    public UserService(UserRepository userRepository) {
+-        this.userRepository = userRepository;
+-    }
+-
+-    public ResponseEntity<User>  getAllUsers() {
+-        List<User> userList = (List<User>) userRepository.findAll();
+-        return new ResponseEntity(userList, HttpStatus.OK);
+-    }
+-
+-    public ResponseEntity<User> getUserById(UUID id) {
+-        boolean userExists = userRepository.existsById(id);
+-        if(userExists){
+-            User user = userRepository.findById(id).get();
+-            return new ResponseEntity(user, HttpStatus.OK);
+-        }else{
+-            return new ResponseEntity("User with given ID not found", HttpStatus.BAD_REQUEST);
+-        }
+-    }
+-
+-    public ResponseEntity<User> updateUserById(UUID id, User user) {
+-        boolean userExists = userRepository.existsById(id);
+-        if(userExists){
+-            User userToUpdate = userRepository.findById(id).get();
+-            userToUpdate.setName(user.getName());
+-            userToUpdate.setLastname(user.getLastname());
+-            userToUpdate.setEmail(user.getEmail());
+-            userToUpdate.setPassword(user.getPassword());
+-            userToUpdate.setRole(user.getRole());
+-            userRepository.save(userToUpdate);
+-            return new ResponseEntity(userToUpdate, HttpStatus.OK);
+-        }else{
+-            return new ResponseEntity("User with given ID not found", HttpStatus.BAD_REQUEST);
+-        }
+-    }
+-
+-    public ResponseEntity<User> createUser(User user) {
+-        Optional<User> userOptional = userRepository.findByEmail(user.getEmail());
+-        if(userOptional.isPresent()) {
+-            return new ResponseEntity("Email already used by different User", HttpStatus.CONFLICT);
+-        }else{
+-            userRepository.save(user);
+-            return new ResponseEntity(user, HttpStatus.OK);
+-        }
+-    }
+-
+-    public ResponseEntity<User> deleteUserById(UUID id) {
+-        boolean userExists = userRepository.existsById(id);
+-        if(userExists){
+-            userRepository.deleteById(id);
+-            return new ResponseEntity(HttpStatus.OK);
+-        }else{
+-            return new ResponseEntity("User with given ID does not exist", HttpStatus.BAD_REQUEST);
+-        }
+-    }
+-}
+
+commit c035ba2830a45272108b900d81f545f00a2df093
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 13:19:57 2022 +0200
+
+    updated api endpoints to be REST valid
+
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index 1a42a5b..d4babcc 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -28,18 +28,16 @@ public class BookingController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @GetMapping
+-    public ResponseEntity<Booking> getAllBookings(){
+-        return bookingService.getBookings();
+-    }
+-
+-    @Operation(
+-            summary = "Get one specific booking by user ID",
+-            description = "Loads one specific booking by ID from the creater from the database.",
+-            security = {@SecurityRequirement(name = "JWT Auth")}
+-    )
+-    @GetMapping("/{id}")
+-    public ResponseEntity<Booking> getBookingByUser(@PathVariable UUID id){
+-        return bookingService.getBookingByUser(id);
++    public ResponseEntity<Booking> getAllBookings(@RequestParam(value = "status", required = false) String status, @RequestParam(value = "userid", required = false) UUID userid){
++        if(status != null && userid != null){
++            return bookingService.getBookingsByStatusAndUserId(status, userid);
++        } else if(status != null){
++            return bookingService.getBookingByStatus(status);
++        } else if(userid != null){
++            return bookingService.getBookingByUser(userid);
++        } else {
++            return bookingService.getBookings();
++        }
+     }
+ 
+     @Operation(
+@@ -47,9 +45,9 @@ public class BookingController {
+             description = "Gets all bookings by status in database.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @GetMapping("/{status}")
+-    public ResponseEntity<Booking> getBookingByStatus(@PathVariable String status){
+-        return bookingService.getBookingByStatus(status);
++    @GetMapping("/{id}")
++    public ResponseEntity<Booking> getBookingById(@PathVariable UUID id){
++        return bookingService.getBookingById(id);
+     }
+ 
+     @Operation(
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+index 34641cc..d7ab575 100644
+--- a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
++++ b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+@@ -12,4 +12,6 @@ import java.util.UUID;
+ public interface BookingRepository extends CrudRepository<Booking, UUID> {
+     Optional<Booking> findByCreatorId(UUID id);
+     List<Booking> findAllByStatus(String status);
++
++    List<Booking> findAllByStatusAndCreatorId(String status, UUID userid);
+ }
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+index 7d9b725..2077a0c 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/BookingService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -26,6 +26,11 @@ public class BookingService {
+         return new ResponseEntity(bookingRepository.findAll(), HttpStatus.OK);
+     }
+ 
++    //getbooking by id
++    public ResponseEntity getBookingById(UUID id) {
++        return new ResponseEntity(bookingRepository.findById(id), HttpStatus.OK);
++    }
++
+     //getBooking by user
+     public ResponseEntity getBookingByUser(UUID id) {
+         boolean userExists = userRepository.existsById(id);
+@@ -89,5 +94,12 @@ public class BookingService {
+     }
+ 
+ 
+-
++    public ResponseEntity<Booking> getBookingsByStatusAndUserId(String status, UUID userid) {
++        boolean userExists = userRepository.existsById(userid);
++        if(userExists){
++            return new ResponseEntity(bookingRepository.findAllByStatusAndCreatorId(status, userid), HttpStatus.OK);
++        }else{
++            return new ResponseEntity("User with given ID does not exist", HttpStatus.NOT_FOUND);
++        }
++    }
+ }
+
+commit f96b07f894c1aa1b24642397dbaad4a1b95058a8
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 11:39:35 2022 +0200
+
+    changed to UUID and updated mappings
+
+diff --git a/init/01.sql b/init/01.sql
+index 8c5c59e..91afddc 100644
+--- a/init/01.sql
++++ b/init/01.sql
+@@ -21,7 +21,7 @@ USE `coworkingspace` ;
+ 
+ DROP TABLE IF EXISTS `coworkingspace`.`MEMBER` ;
+ CREATE TABLE `coworkingspace`.`MEMBER` (
+-    `id` INT NOT NULL AUTO_INCREMENT,
++    `id` UUID,
+     `name` VARCHAR(50) NOT NULL,
+     `lastname` VARCHAR(50) NOT NULL,
+     `email` VARCHAR(255) NOT NULL,
+@@ -32,8 +32,8 @@ CREATE TABLE `coworkingspace`.`MEMBER` (
+ 
+ DROP TABLE IF EXISTS `coworkingspace`.`BOOKING` CASCADE;
+ CREATE TABLE `coworkingspace`.`BOOKING` (
+-    `id` INT NOT NULL,
+-    `creator` int NOT NULL,
++    `id` UUID,
++    `creator` UUID,
+     `day_duration` int NOT NULL,
+     `date` date NOT NULL,
+     `status` VARCHAR(50) NOT NULL,
+@@ -43,7 +43,7 @@ CREATE TABLE `coworkingspace`.`BOOKING` (
+ 
+ INSERT INTO `coworkingspace`.`MEMBER` (`id`, `name`, `lastname`, `email`, `password`, `role`)
+ VALUES (
+-        1,
++        '4be5f5bf-8eb5-44ea-8eb5-a5e807856d09',
+         'Peter',
+         'Rutschmann',
+         'peter.rutschmann@gmail.com',
+@@ -51,7 +51,7 @@ VALUES (
+         'ADMIN'
+     ),
+     (
+-        2,
++        'e1eec954-6ef4-4926-8183-7575af189f2a',
+         'Johannes',
+         'Höffliger',
+         'johannes.höffliger@gmail.com',
+@@ -59,4 +59,4 @@ VALUES (
+         'MEMBER'
+     );
+ INSERT INTO BOOKING (id, creator, day_duration, date, status)
+-VALUES (1, 1, 0.5, '2022-09-23', 'Pending');
+\ No newline at end of file
++VALUES ('413e2297-b84b-42ef-97ed-16a8a9d1d671', '4be5f5bf-8eb5-44ea-8eb5-a5e807856d09', 0.5, '2022-09-23', 'Pending');
+\ No newline at end of file
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index 36b6dc4..1a42a5b 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -8,9 +8,11 @@ import io.swagger.v3.oas.annotations.Operation;
+ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+ import io.swagger.v3.oas.annotations.tags.Tag;
+ 
++import java.util.UUID;
++
+ 
+ @RestController
+-@RequestMapping("/booking")
++@RequestMapping("/bookings")
+ @Tag(name = "Bookings", description = "Booking management endpoints")
+ public class BookingController {
+ 
+@@ -25,7 +27,7 @@ public class BookingController {
+             description = "Loads all bookings from the database.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @GetMapping("/all")
++    @GetMapping
+     public ResponseEntity<Booking> getAllBookings(){
+         return bookingService.getBookings();
+     }
+@@ -35,8 +37,8 @@ public class BookingController {
+             description = "Loads one specific booking by ID from the creater from the database.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @GetMapping("/user/{id}")
+-    public ResponseEntity<Booking> getBookingByUser(@PathVariable Long id){
++    @GetMapping("/{id}")
++    public ResponseEntity<Booking> getBookingByUser(@PathVariable UUID id){
+         return bookingService.getBookingByUser(id);
+     }
+ 
+@@ -55,7 +57,7 @@ public class BookingController {
+             description = "Creates a new booking in database",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @PostMapping("/create")
++    @PostMapping
+     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking){
+         return bookingService.createBooking(booking);
+     }
+@@ -65,8 +67,8 @@ public class BookingController {
+             description = "Update information from a specific booking by ID.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @PutMapping("/update/{id}")
+-    public ResponseEntity<Booking> updateBooking(@PathVariable Long id, @RequestBody Booking booking){
++    @PutMapping("/{id}")
++    public ResponseEntity<Booking> updateBooking(@PathVariable UUID id, @RequestBody Booking booking){
+         return bookingService.updateBooking(id, booking);
+     }
+ 
+@@ -75,8 +77,8 @@ public class BookingController {
+             description = "Update information from a specific booking by ID.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @PutMapping("/update/status/{id}")
+-    public ResponseEntity<Booking> updateBookingStatus(@PathVariable Long id, @RequestBody Booking booking){
++    @PutMapping("/status/{id}")
++    public ResponseEntity<Booking> updateBookingStatus(@PathVariable UUID id, @RequestBody Booking booking){
+         return bookingService.updateBookingStatus(id, booking);
+     }
+ 
+@@ -85,8 +87,8 @@ public class BookingController {
+             description = "Delete a booking by ID.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @DeleteMapping("/delete/{id}")
+-    public ResponseEntity<Booking> deleteBooking(@PathVariable Long id){
++    @DeleteMapping("/{id}")
++    public ResponseEntity<Booking> deleteBooking(@PathVariable UUID id){
+         return bookingService.deleteBooking(id);
+     }
+ 
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/UserController.java b/src/main/java/ch/ms/coworkingspace/controller/UserController.java
+index 1ed7e22..dd4bb04 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/UserController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/UserController.java
+@@ -9,9 +9,10 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+ import io.swagger.v3.oas.annotations.tags.Tag;
+ 
+ import java.util.List;
++import java.util.UUID;
+ 
+ @RestController
+-@RequestMapping("/user")
++@RequestMapping("/users")
+ @Tag(name = "Users", description = "User management endpoints")
+ public class UserController {
+ 
+@@ -26,7 +27,7 @@ public class UserController {
+             description = "Loads all users from the database.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @GetMapping("/all")
++    @GetMapping
+     public ResponseEntity<User> getAllUsers(){
+         return userService.getAllUsers();
+     }
+@@ -37,7 +38,7 @@ public class UserController {
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+     @GetMapping("/{id}")
+-    public ResponseEntity<User> getUserById(@PathVariable Long id){
++    public ResponseEntity<User> getUserById(@PathVariable UUID id){
+         return userService.getUserById(id);
+     }
+ 
+@@ -46,7 +47,7 @@ public class UserController {
+             description = "Creates a new user in database.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @PostMapping("/create")
++    @PostMapping
+     public ResponseEntity<User> createUser(@RequestBody User user){
+         return userService.createUser(user);
+     }
+@@ -56,8 +57,8 @@ public class UserController {
+             description = "Update information from a specific user by ID.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @PutMapping("/update/{id}")
+-    public ResponseEntity<User> updateUserById(@PathVariable Long id, @RequestBody User user){
++    @PutMapping("/{id}")
++    public ResponseEntity<User> updateUserById(@PathVariable UUID id, @RequestBody User user){
+         return userService.updateUserById(id, user);
+     }
+ 
+@@ -66,8 +67,8 @@ public class UserController {
+             description = "Delete a user by ID.",
+             security = {@SecurityRequirement(name = "JWT Auth")}
+     )
+-    @DeleteMapping("/delete/{id}")
+-    public ResponseEntity<User> deleteUserById(@PathVariable Long id){
++    @DeleteMapping("/{id}")
++    public ResponseEntity<User> deleteUserById(@PathVariable UUID id){
+         return userService.deleteUserById(id);
+     }
+ 
+diff --git a/src/main/java/ch/ms/coworkingspace/model/Booking.java b/src/main/java/ch/ms/coworkingspace/model/Booking.java
+index 4f94319..8af416e 100644
+--- a/src/main/java/ch/ms/coworkingspace/model/Booking.java
++++ b/src/main/java/ch/ms/coworkingspace/model/Booking.java
+@@ -1,16 +1,22 @@
+ package ch.ms.coworkingspace.model;
+ 
++import org.hibernate.annotations.GenericGenerator;
++import org.hibernate.annotations.Type;
+ import org.hibernate.type.LocalDateType;
+ 
+ import javax.persistence.*;
+ import java.time.LocalDate;
++import java.util.UUID;
+ 
+ @Entity(name = "BOOKING")
+ public class Booking {
+ 
+     @Id
+-    @GeneratedValue(strategy = GenerationType.AUTO)
+-    private Long id;
++    @GeneratedValue(generator = "UUID")
++    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
++    @Column(name = "id", updatable = false, nullable = false)
++    @Type(type = "org.hibernate.type.UUIDCharType")
++    private UUID id = UUID.randomUUID();
+     @ManyToOne
+     @JoinColumn(name = "creator", referencedColumnName = "id")
+     private User creator;
+@@ -31,11 +37,11 @@ public class Booking {
+         this.date = date;
+         this.status = status;
+     }
+-    public Long getId() {
++    public UUID getId() {
+         return id;
+     }
+ 
+-    public void setId(Long id) {
++    public void setId(UUID id) {
+         this.id = id;
+     }
+ 
+diff --git a/src/main/java/ch/ms/coworkingspace/model/User.java b/src/main/java/ch/ms/coworkingspace/model/User.java
+index a4e1cee..2dbbe45 100644
+--- a/src/main/java/ch/ms/coworkingspace/model/User.java
++++ b/src/main/java/ch/ms/coworkingspace/model/User.java
+@@ -1,13 +1,20 @@
+ package ch.ms.coworkingspace.model;
+ 
++import org.hibernate.annotations.GenericGenerator;
++import org.hibernate.annotations.Type;
++
+ import javax.persistence.*;
++import java.util.UUID;
+ 
+-@Entity(name = "MEMBER")
++@Entity(name = "member")
+ public class User {
+ 
+     @Id
+-    @GeneratedValue(strategy = GenerationType.AUTO)
+-    private Long id;
++    @GeneratedValue(generator = "UUID")
++    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
++    @Column(name = "id", updatable = false, nullable = false)
++    @Type(type = "org.hibernate.type.UUIDCharType")
++    private UUID id = UUID.randomUUID();
+ 
+     @Column(name = "name", nullable = false)
+     private String name;
+@@ -32,11 +39,11 @@ public class User {
+         this.role = role;
+     }
+ 
+-    public Long getId() {
++    public UUID getId() {
+         return id;
+     }
+ 
+-    public void setId(Long id) {
++    public void setId(UUID id) {
+         this.id = id;
+     }
+ 
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+index d15db7d..34641cc 100644
+--- a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
++++ b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+@@ -6,9 +6,10 @@ import org.springframework.stereotype.Repository;
+ 
+ import java.util.List;
+ import java.util.Optional;
++import java.util.UUID;
+ 
+ @Repository
+-public interface BookingRepository extends CrudRepository<Booking, Long> {
+-    Optional<Booking> findByCreatorId(Long id);
++public interface BookingRepository extends CrudRepository<Booking, UUID> {
++    Optional<Booking> findByCreatorId(UUID id);
+     List<Booking> findAllByStatus(String status);
+ }
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java b/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
+index 5c6145c..c303df2 100644
+--- a/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
++++ b/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
+@@ -1,14 +1,14 @@
+ package ch.ms.coworkingspace.repository;
+ 
+ import ch.ms.coworkingspace.model.User;
+-import org.springframework.data.jpa.repository.Query;
+ import org.springframework.data.repository.CrudRepository;
+ import org.springframework.stereotype.Repository;
+ 
+ import java.util.Optional;
++import java.util.UUID;
+ 
+ @Repository
+-public interface UserRepository extends CrudRepository<User, Long> {
++public interface UserRepository extends CrudRepository<User, UUID> {
+ 
+     Optional<User> findByEmail(String email);
+ }
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+index c8819c9..7d9b725 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/BookingService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.stereotype.Service;
+ 
++import java.util.UUID;
++
+ @Service
+ public class BookingService {
+ 
+@@ -25,7 +27,7 @@ public class BookingService {
+     }
+ 
+     //getBooking by user
+-    public ResponseEntity getBookingByUser(Long id) {
++    public ResponseEntity getBookingByUser(UUID id) {
+         boolean userExists = userRepository.existsById(id);
+         if(userExists){
+             return new ResponseEntity(bookingRepository.findByCreatorId(id), HttpStatus.OK);
+@@ -47,7 +49,7 @@ public class BookingService {
+     }
+ 
+     //updateBooking (Full booking update. Intended for admin emergency use)
+-    public ResponseEntity updateBooking(Long id, Booking booking) {
++    public ResponseEntity updateBooking(UUID id, Booking booking) {
+         boolean bookingExists = bookingRepository.existsById(id);
+         if(bookingExists){
+             Booking bookingToUpdate = bookingRepository.findById(id).get();
+@@ -63,7 +65,7 @@ public class BookingService {
+     }
+ 
+     //updateBookingStatus
+-    public ResponseEntity updateBookingStatus(Long id, Booking booking) {
++    public ResponseEntity updateBookingStatus(UUID id, Booking booking) {
+         boolean bookingExists = bookingRepository.existsById(id);
+         if(bookingExists){
+             Booking bookingToUpdate = bookingRepository.findById(id).get();
+@@ -76,7 +78,7 @@ public class BookingService {
+     }
+ 
+     //deleteBooking by id
+-    public ResponseEntity deleteBooking(Long id) {
++    public ResponseEntity deleteBooking(UUID id) {
+         boolean bookingExists = bookingRepository.existsById(id);
+         if(bookingExists){
+             bookingRepository.deleteById(id);
+diff --git a/src/main/java/ch/ms/coworkingspace/service/UserService.java b/src/main/java/ch/ms/coworkingspace/service/UserService.java
+index d45c5ae..a49a8cf 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/UserService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/UserService.java
+@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
+ 
+ import java.util.List;
+ import java.util.Optional;
++import java.util.UUID;
+ 
+ @Service
+ public class UserService {
+@@ -23,7 +24,7 @@ public class UserService {
+         return new ResponseEntity(userList, HttpStatus.OK);
+     }
+ 
+-    public ResponseEntity<User> getUserById(Long id) {
++    public ResponseEntity<User> getUserById(UUID id) {
+         boolean userExists = userRepository.existsById(id);
+         if(userExists){
+             User user = userRepository.findById(id).get();
+@@ -33,7 +34,7 @@ public class UserService {
+         }
+     }
+ 
+-    public ResponseEntity<User> updateUserById(Long id, User user) {
++    public ResponseEntity<User> updateUserById(UUID id, User user) {
+         boolean userExists = userRepository.existsById(id);
+         if(userExists){
+             User userToUpdate = userRepository.findById(id).get();
+@@ -59,7 +60,7 @@ public class UserService {
+         }
+     }
+ 
+-    public ResponseEntity<User> deleteUserById(Long id) {
++    public ResponseEntity<User> deleteUserById(UUID id) {
+         boolean userExists = userRepository.existsById(id);
+         if(userExists){
+             userRepository.deleteById(id);
+diff --git a/src/main/resources/application.properties b/src/main/resources/application.properties
+index 716fe55..91ad2b3 100644
+--- a/src/main/resources/application.properties
++++ b/src/main/resources/application.properties
+@@ -2,7 +2,7 @@ spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+ spring.datasource.url=jdbc:mysql://localhost:3306/coworkingspace
+ spring.datasource.username=root
+ spring.datasource.password=123456
+-spring.jpa.hibernate.ddl-auto=update
++spring.jpa.hibernate.ddl-auto=none
+ spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL5Dialect
+ spring.jpa.properties.hibernate.format_sql=true
+ server.error.include-message=always
+
+commit 02357d800da6d19d22337fb5190d6806043d3de4
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 10:53:27 2022 +0200
+
+    added openapi config
+    
+    added swagger api documentation
+
+diff --git a/README.md b/README.md
+index 38e02ba..95a0825 100644
+--- a/README.md
++++ b/README.md
+@@ -42,10 +42,18 @@ You can run the springboot application in the IDE of your choice. The applicatio
+ 
+ <p align="right">(<a href="#readme-top">back to top</a>)</p>
+ 
++### Startup info
++
++The application will start with the following users:
++* Peter Rutschmann (Admin) - login: peter.rutschmann@gmail.com - pw: test1234 
++* Johannes Höffliger (Member) - login: johannes.höffliger@gmail.com - pw: test1234
++
+ 
+ 
+ <!-- USAGE EXAMPLES -->
+ ## Important Information
++### Links
++* API Documentation: http://localhost:8080/swagger-ui/index.html
+ 
+ ### Database structure
+ The database was designed with the assumption that the bookable locations are actual office workstations. For that reason the admin will handle any assignement of bookings to specific available Seats. 
+diff --git a/src/main/java/ch/ms/coworkingspace/configuration/OpenApiConfig.java b/src/main/java/ch/ms/coworkingspace/configuration/OpenApiConfig.java
+new file mode 100644
+index 0000000..73bc66d
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/configuration/OpenApiConfig.java
+@@ -0,0 +1,34 @@
++package ch.ms.coworkingspace.configuration;
++import io.swagger.v3.oas.models.Components;
++import io.swagger.v3.oas.models.OpenAPI;
++import io.swagger.v3.oas.models.info.Info;
++import io.swagger.v3.oas.models.security.SecurityScheme;
++import org.springdoc.core.GroupedOpenApi;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Configuration;
++
++@Configuration
++public class OpenApiConfig {
++
++    @Bean
++    public GroupedOpenApi publicApi() {
++        return GroupedOpenApi.builder()
++                .packagesToScan("ch.ms.coworkingspace.controller")
++                .group("crud-api")
++                .build();
++    }
++
++    @Bean
++    public OpenAPI openAPI() {
++        return new OpenAPI()
++                .info(new Info().title("CRUD API").version("v1.0.0"))
++                .components(new Components()
++                        .addSecuritySchemes("JWT Auth", new SecurityScheme()
++                                .name("Authorization")
++                                .type(SecurityScheme.Type.APIKEY)
++                                .in(SecurityScheme.In.HEADER)
++                                .scheme("apikey")
++                        )
++                );
++    }
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+index 4b86bd6..36b6dc4 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -4,9 +4,14 @@ import ch.ms.coworkingspace.model.Booking;
+ import ch.ms.coworkingspace.service.BookingService;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.web.bind.annotation.*;
++import io.swagger.v3.oas.annotations.Operation;
++import io.swagger.v3.oas.annotations.security.SecurityRequirement;
++import io.swagger.v3.oas.annotations.tags.Tag;
++
+ 
+ @RestController
+ @RequestMapping("/booking")
++@Tag(name = "Bookings", description = "Booking management endpoints")
+ public class BookingController {
+ 
+     BookingService bookingService;
+@@ -15,36 +20,71 @@ public class BookingController {
+         this.bookingService = bookingService;
+     }
+ 
++    @Operation(
++            summary = "Get all bookings",
++            description = "Loads all bookings from the database.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @GetMapping("/all")
+     public ResponseEntity<Booking> getAllBookings(){
+         return bookingService.getBookings();
+     }
+ 
++    @Operation(
++            summary = "Get one specific booking by user ID",
++            description = "Loads one specific booking by ID from the creater from the database.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @GetMapping("/user/{id}")
+     public ResponseEntity<Booking> getBookingByUser(@PathVariable Long id){
+         return bookingService.getBookingByUser(id);
+     }
+ 
++    @Operation(
++            summary = "Get all bookings by status",
++            description = "Gets all bookings by status in database.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @GetMapping("/{status}")
+     public ResponseEntity<Booking> getBookingByStatus(@PathVariable String status){
+         return bookingService.getBookingByStatus(status);
+     }
+ 
++    @Operation(
++            summary = "Create a new booking",
++            description = "Creates a new booking in database",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @PostMapping("/create")
+     public ResponseEntity<Booking> createBooking(@RequestBody Booking booking){
+         return bookingService.createBooking(booking);
+     }
+ 
++    @Operation(
++            summary = "Update an existing booking",
++            description = "Update information from a specific booking by ID.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @PutMapping("/update/{id}")
+     public ResponseEntity<Booking> updateBooking(@PathVariable Long id, @RequestBody Booking booking){
+         return bookingService.updateBooking(id, booking);
+     }
+ 
++    @Operation(
++            summary = "Update the status from an existing booking",
++            description = "Update information from a specific booking by ID.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @PutMapping("/update/status/{id}")
+     public ResponseEntity<Booking> updateBookingStatus(@PathVariable Long id, @RequestBody Booking booking){
+         return bookingService.updateBookingStatus(id, booking);
+     }
+ 
++    @Operation(
++            summary = "Delete an existing booking",
++            description = "Delete a booking by ID.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @DeleteMapping("/delete/{id}")
+     public ResponseEntity<Booking> deleteBooking(@PathVariable Long id){
+         return bookingService.deleteBooking(id);
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/UserController.java b/src/main/java/ch/ms/coworkingspace/controller/UserController.java
+index 8355dea..1ed7e22 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/UserController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/UserController.java
+@@ -4,11 +4,15 @@ import ch.ms.coworkingspace.model.User;
+ import ch.ms.coworkingspace.service.UserService;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.web.bind.annotation.*;
++import io.swagger.v3.oas.annotations.Operation;
++import io.swagger.v3.oas.annotations.security.SecurityRequirement;
++import io.swagger.v3.oas.annotations.tags.Tag;
+ 
+ import java.util.List;
+ 
+ @RestController
+ @RequestMapping("/user")
++@Tag(name = "Users", description = "User management endpoints")
+ public class UserController {
+ 
+     UserService userService;
+@@ -17,26 +21,51 @@ public class UserController {
+         this.userService = userService;
+     }
+ 
++    @Operation(
++            summary = "Get all users",
++            description = "Loads all users from the database.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @GetMapping("/all")
+     public ResponseEntity<User> getAllUsers(){
+         return userService.getAllUsers();
+     }
+ 
++    @Operation(
++            summary = "Get one specific user",
++            description = "Loads one specific user by ID from the database.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @GetMapping("/{id}")
+     public ResponseEntity<User> getUserById(@PathVariable Long id){
+         return userService.getUserById(id);
+     }
+ 
++    @Operation(
++            summary = "Create a new user",
++            description = "Creates a new user in database.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @PostMapping("/create")
+     public ResponseEntity<User> createUser(@RequestBody User user){
+         return userService.createUser(user);
+     }
+ 
++    @Operation(
++            summary = "Update an existing user",
++            description = "Update information from a specific user by ID.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @PutMapping("/update/{id}")
+     public ResponseEntity<User> updateUserById(@PathVariable Long id, @RequestBody User user){
+         return userService.updateUserById(id, user);
+     }
+ 
++    @Operation(
++            summary = "Delete an existing user",
++            description = "Delete a user by ID.",
++            security = {@SecurityRequirement(name = "JWT Auth")}
++    )
+     @DeleteMapping("/delete/{id}")
+     public ResponseEntity<User> deleteUserById(@PathVariable Long id){
+         return userService.deleteUserById(id);
+
+commit 48c63eca37324e193906358e28bab92e0e293458
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 10:23:17 2022 +0200
+
+    updated readme
+
+diff --git a/README.md b/README.md
+index 7b75e08..38e02ba 100644
+--- a/README.md
++++ b/README.md
+@@ -48,7 +48,7 @@ You can run the springboot application in the IDE of your choice. The applicatio
+ ## Important Information
+ 
+ ### Database structure
+-The database was designed with the expectation that the Admin will handle any assignement of bookings to specific available locations.
++The database was designed with the assumption that the bookable locations are actual office workstations. For that reason the admin will handle any assignement of bookings to specific available Seats. 
+ Therefore, the database <b>does not feature a Table for the location of bookings. </b>
+ 
+ ### Client Demo (Postman)
+
+commit 8e2d3e5fe569e640a9edc0c99ff6d04384e9ccd6
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 10:17:23 2022 +0200
+
+    updated readme
+
+diff --git a/README.md b/README.md
+index 28852d8..7b75e08 100644
+--- a/README.md
++++ b/README.md
+@@ -1,2 +1,57 @@
+-# Uek-Modul223_Co-Working
+-Final Project for the Uek M223 Course
++<h2 align="center">ÜK Modul-223 - Co-working Space application</h2>
++
++  <p align="center">
++    An application for a co-working space. The application is developed as the final practial assignement of the Modul 223 course at ZLI.:
++    <br />
++  </p>
++<br>
++<br>
++
++### Built With
++
++Major frameworks/libraries used to develop and run a demo of the application:
++
++* [Docker](https://www.docker.com/)
++* [Mysql](https://www.mysql.com/)
++* [Postman](https://www.postman.com/)
++* [Spring Boot](https://spring.io/projects/spring-boot)
++
++<p align="right">(<a href="#readme-top">back to top</a>)</p>
++
++
++
++<!-- GETTING STARTED -->
++## Getting Started
++
++To start this project, you need to have the following tools installed on your machine:
++<!-- Docker -->
++* [Docker](https://www.docker.com/)
++
++### Starting the database server
++
++To start the database server, you need to ensure that you have the docker-compose file as well as an "init" folder in the same directory. The "init" folder should include an SQL file.
++Then, you can start the database server by running the following command in the root directory of the project:
++
++```sh
++docker compose up
++  ```
++
++### Starting the Springboot application
++
++You can run the springboot application in the IDE of your choice. The application will most likely run on port 8080.
++
++<p align="right">(<a href="#readme-top">back to top</a>)</p>
++
++
++
++<!-- USAGE EXAMPLES -->
++## Important Information
++
++### Database structure
++The database was designed with the expectation that the Admin will handle any assignement of bookings to specific available locations.
++Therefore, the database <b>does not feature a Table for the location of bookings. </b>
++
++### Client Demo (Postman)
++To be able to make requests to endpoints in a manner, corresponding to how an actual client would. There will be a Postman export in addition to the base Project
++that can be used to make requests to the endpoints. The Postman export can be found in the root directory of the project.
++
+
+commit 240e96e4387e82041b4aa836eb5b6fc651728e49
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 09:28:23 2022 +0200
+
+    added Bookingcontroller
+    
+    Still missing: User validation (add as creator when creating a booking)
+
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/BookingController.java b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+new file mode 100644
+index 0000000..4b86bd6
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/controller/BookingController.java
+@@ -0,0 +1,56 @@
++package ch.ms.coworkingspace.controller;
++
++import ch.ms.coworkingspace.model.Booking;
++import ch.ms.coworkingspace.service.BookingService;
++import org.springframework.http.ResponseEntity;
++import org.springframework.web.bind.annotation.*;
++
++@RestController
++@RequestMapping("/booking")
++public class BookingController {
++
++    BookingService bookingService;
++
++    public BookingController(BookingService bookingService) {
++        this.bookingService = bookingService;
++    }
++
++    @GetMapping("/all")
++    public ResponseEntity<Booking> getAllBookings(){
++        return bookingService.getBookings();
++    }
++
++    @GetMapping("/user/{id}")
++    public ResponseEntity<Booking> getBookingByUser(@PathVariable Long id){
++        return bookingService.getBookingByUser(id);
++    }
++
++    @GetMapping("/{status}")
++    public ResponseEntity<Booking> getBookingByStatus(@PathVariable String status){
++        return bookingService.getBookingByStatus(status);
++    }
++
++    @PostMapping("/create")
++    public ResponseEntity<Booking> createBooking(@RequestBody Booking booking){
++        return bookingService.createBooking(booking);
++    }
++
++    @PutMapping("/update/{id}")
++    public ResponseEntity<Booking> updateBooking(@PathVariable Long id, @RequestBody Booking booking){
++        return bookingService.updateBooking(id, booking);
++    }
++
++    @PutMapping("/update/status/{id}")
++    public ResponseEntity<Booking> updateBookingStatus(@PathVariable Long id, @RequestBody Booking booking){
++        return bookingService.updateBookingStatus(id, booking);
++    }
++
++    @DeleteMapping("/delete/{id}")
++    public ResponseEntity<Booking> deleteBooking(@PathVariable Long id){
++        return bookingService.deleteBooking(id);
++    }
++
++
++
++
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/model/User.java b/src/main/java/ch/ms/coworkingspace/model/User.java
+index 5e05396..a4e1cee 100644
+--- a/src/main/java/ch/ms/coworkingspace/model/User.java
++++ b/src/main/java/ch/ms/coworkingspace/model/User.java
+@@ -18,7 +18,7 @@ public class User {
+     @Column(name = "password", nullable = false)
+     private String password;
+     @Column(name = "role", nullable = false)
+-    private String role;
++    private String role = "MEMBER";
+ 
+ 
+     public User() {
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+index 8ccfdd5..d15db7d 100644
+--- a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
++++ b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+@@ -9,7 +9,6 @@ import java.util.Optional;
+ 
+ @Repository
+ public interface BookingRepository extends CrudRepository<Booking, Long> {
+-    Optional<Booking> findByCreator(Long id);
+-
++    Optional<Booking> findByCreatorId(Long id);
+     List<Booking> findAllByStatus(String status);
+ }
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+index 009c505..c8819c9 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/BookingService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -13,7 +13,7 @@ public class BookingService {
+     BookingRepository bookingRepository;
+     UserRepository userRepository;
+ 
+-    public BookingService(BookingRepository bookingRepository) {
++    public BookingService(BookingRepository bookingRepository, UserRepository userRepository) {
+         this.bookingRepository = bookingRepository;
+         this.userRepository = userRepository;
+     }
+@@ -28,9 +28,9 @@ public class BookingService {
+     public ResponseEntity getBookingByUser(Long id) {
+         boolean userExists = userRepository.existsById(id);
+         if(userExists){
+-            return new ResponseEntity(bookingRepository.findByCreator(id), HttpStatus.OK);
++            return new ResponseEntity(bookingRepository.findByCreatorId(id), HttpStatus.OK);
+         }else{
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity("User with given ID does not exist", HttpStatus.NOT_FOUND);
+         }
+     }
+ 
+@@ -58,7 +58,7 @@ public class BookingService {
+             bookingRepository.save(bookingToUpdate);
+             return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
+         }else{
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
+         }
+     }
+ 
+@@ -71,7 +71,7 @@ public class BookingService {
+             bookingRepository.save(bookingToUpdate);
+             return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
+         }else{
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
+         }
+     }
+ 
+@@ -82,7 +82,7 @@ public class BookingService {
+             bookingRepository.deleteById(id);
+             return new ResponseEntity(HttpStatus.OK);
+         }else{
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity("Booking with given ID does not exist", HttpStatus.NOT_FOUND);
+         }
+     }
+ 
+
+commit 207aea782ada47c9bf2fbb64c71180bd4cc06084
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Tue Sep 20 08:27:11 2022 +0200
+
+    removed dockercompose from gitignore
+
+diff --git a/.gitignore b/.gitignore
+index 74222c1..4706610 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -3,5 +3,4 @@
+ .idea
+ *mysql_db_data
+ 
+-/docker-compose.yml
+ /target
+\ No newline at end of file
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..192fa50
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,29 @@
++version: '3.6'
++
++services:
++  db:
++    #platform: linux/x86_64
++    image: mariadb:latest
++    ports:
++      - '3306:3306'
++    volumes:
++      - ./init:/docker-entrypoint-initdb.d
++      - ./mysql_db_data:/var/lib/mysql
++ 
++    restart: always
++    environment:
++      MYSQL_ROOT_PASSWORD: 123456
++      MYSQL_DATABASE: coworkingspace
++      MYSQL_USER: user
++      MYSQL_PASSWORD: user
++
++  phpmyadmin:
++    depends_on:
++      - db
++    image: phpmyadmin/phpmyadmin
++    restart: always
++    ports:
++      - '8090:80'
++    environment:
++      PMA_HOST: db
++      MYSQL_ROOT_PASSWORD: 123456
+
+commit 5a309ae016991b7d10da2317d9a4c1115ffd83ca
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Mon Sep 19 22:26:54 2022 +0200
+
+    moved to Mysql with docker compose
+
+diff --git a/init/01.sql b/init/01.sql
+new file mode 100644
+index 0000000..8c5c59e
+--- /dev/null
++++ b/init/01.sql
+@@ -0,0 +1,62 @@
++
++ -- MySQL Script generated by MySQL Workbench
++-- Sun Sep 18 20:52:09 2022
++-- Model: New Model    Version: 1.0
++-- MySQL Workbench Forward Engineering
++
++SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
++SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
++SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
++
++-- -----------------------------------------------------
++-- Schema coworking_space
++-- -----------------------------------------------------
++DROP SCHEMA IF EXISTS `coworkingspace` ;
++
++-- -----------------------------------------------------
++-- Schema coworking_space
++-- -----------------------------------------------------
++CREATE SCHEMA IF NOT EXISTS `coworkingspace` DEFAULT CHARACTER SET utf8 ;
++USE `coworkingspace` ;
++
++DROP TABLE IF EXISTS `coworkingspace`.`MEMBER` ;
++CREATE TABLE `coworkingspace`.`MEMBER` (
++    `id` INT NOT NULL AUTO_INCREMENT,
++    `name` VARCHAR(50) NOT NULL,
++    `lastname` VARCHAR(50) NOT NULL,
++    `email` VARCHAR(255) NOT NULL,
++    `password` VARCHAR(255) NOT NULL,
++    `role` VARCHAR(50) NOT NULL,
++    PRIMARY KEY (id)
++);
++
++DROP TABLE IF EXISTS `coworkingspace`.`BOOKING` CASCADE;
++CREATE TABLE `coworkingspace`.`BOOKING` (
++    `id` INT NOT NULL,
++    `creator` int NOT NULL,
++    `day_duration` int NOT NULL,
++    `date` date NOT NULL,
++    `status` VARCHAR(50) NOT NULL,
++    PRIMARY KEY (id),
++    FOREIGN KEY (creator) REFERENCES MEMBER (id)
++);
++
++INSERT INTO `coworkingspace`.`MEMBER` (`id`, `name`, `lastname`, `email`, `password`, `role`)
++VALUES (
++        1,
++        'Peter',
++        'Rutschmann',
++        'peter.rutschmann@gmail.com',
++        'test1234',
++        'ADMIN'
++    ),
++    (
++        2,
++        'Johannes',
++        'Höffliger',
++        'johannes.höffliger@gmail.com',
++        'test1234',
++        'MEMBER'
++    );
++INSERT INTO BOOKING (id, creator, day_duration, date, status)
++VALUES (1, 1, 0.5, '2022-09-23', 'Pending');
+\ No newline at end of file
+diff --git a/pom.xml b/pom.xml
+index f120f1c..2ded157 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -25,12 +25,6 @@
+ 			<groupId>org.springframework.boot</groupId>
+ 			<artifactId>spring-boot-starter-web</artifactId>
+ 		</dependency>
+-		<dependency>
+-			<groupId>com.h2database</groupId>
+-			<artifactId>h2</artifactId>
+-			<version>2.1.214</version>
+-			<scope>test</scope>
+-		</dependency>
+ 		<dependency>
+ 			<groupId>com.auth0</groupId>
+ 			<artifactId>java-jwt</artifactId>
+@@ -47,8 +41,9 @@
+ 			<scope>test</scope>
+ 		</dependency>
+ 		<dependency>
+-			<groupId>com.h2database</groupId>
+-			<artifactId>h2</artifactId>
++			<groupId>mysql</groupId>
++			<artifactId>mysql-connector-java</artifactId>
++			<scope>runtime</scope>
+ 		</dependency>
+ 	</dependencies>
+ 	<build>
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/UserController.java b/src/main/java/ch/ms/coworkingspace/controller/UserController.java
+index c71bc6e..8355dea 100644
+--- a/src/main/java/ch/ms/coworkingspace/controller/UserController.java
++++ b/src/main/java/ch/ms/coworkingspace/controller/UserController.java
+@@ -3,9 +3,7 @@ package ch.ms.coworkingspace.controller;
+ import ch.ms.coworkingspace.model.User;
+ import ch.ms.coworkingspace.service.UserService;
+ import org.springframework.http.ResponseEntity;
+-import org.springframework.web.bind.annotation.GetMapping;
+-import org.springframework.web.bind.annotation.RequestMapping;
+-import org.springframework.web.bind.annotation.RestController;
++import org.springframework.web.bind.annotation.*;
+ 
+ import java.util.List;
+ 
+@@ -24,11 +22,27 @@ public class UserController {
+         return userService.getAllUsers();
+     }
+ 
+-    @GetMapping("/id")
+-    public ResponseEntity<User> getUserById(Long id){
++    @GetMapping("/{id}")
++    public ResponseEntity<User> getUserById(@PathVariable Long id){
+         return userService.getUserById(id);
+     }
+ 
++    @PostMapping("/create")
++    public ResponseEntity<User> createUser(@RequestBody User user){
++        return userService.createUser(user);
++    }
++
++    @PutMapping("/update/{id}")
++    public ResponseEntity<User> updateUserById(@PathVariable Long id, @RequestBody User user){
++        return userService.updateUserById(id, user);
++    }
++
++    @DeleteMapping("/delete/{id}")
++    public ResponseEntity<User> deleteUserById(@PathVariable Long id){
++        return userService.deleteUserById(id);
++    }
++
++
+ 
+ 
+ 
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java b/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
+index 822bbde..5c6145c 100644
+--- a/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
++++ b/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
+@@ -1,6 +1,7 @@
+ package ch.ms.coworkingspace.repository;
+ 
+ import ch.ms.coworkingspace.model.User;
++import org.springframework.data.jpa.repository.Query;
+ import org.springframework.data.repository.CrudRepository;
+ import org.springframework.stereotype.Repository;
+ 
+@@ -8,5 +9,6 @@ import java.util.Optional;
+ 
+ @Repository
+ public interface UserRepository extends CrudRepository<User, Long> {
++
+     Optional<User> findByEmail(String email);
+ }
+diff --git a/src/main/java/ch/ms/coworkingspace/service/UserService.java b/src/main/java/ch/ms/coworkingspace/service/UserService.java
+index 4819923..d45c5ae 100644
+--- a/src/main/java/ch/ms/coworkingspace/service/UserService.java
++++ b/src/main/java/ch/ms/coworkingspace/service/UserService.java
+@@ -29,7 +29,7 @@ public class UserService {
+             User user = userRepository.findById(id).get();
+             return new ResponseEntity(user, HttpStatus.OK);
+         }else{
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity("User with given ID not found", HttpStatus.BAD_REQUEST);
+         }
+     }
+ 
+@@ -45,14 +45,14 @@ public class UserService {
+             userRepository.save(userToUpdate);
+             return new ResponseEntity(userToUpdate, HttpStatus.OK);
+         }else{
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity("User with given ID not found", HttpStatus.BAD_REQUEST);
+         }
+     }
+ 
+     public ResponseEntity<User> createUser(User user) {
+         Optional<User> userOptional = userRepository.findByEmail(user.getEmail());
+         if(userOptional.isPresent()) {
+-            return new ResponseEntity(HttpStatus.CONFLICT);
++            return new ResponseEntity("Email already used by different User", HttpStatus.CONFLICT);
+         }else{
+             userRepository.save(user);
+             return new ResponseEntity(user, HttpStatus.OK);
+@@ -65,7 +65,7 @@ public class UserService {
+             userRepository.deleteById(id);
+             return new ResponseEntity(HttpStatus.OK);
+         }else{
+-            return new ResponseEntity(HttpStatus.NOT_FOUND);
++            return new ResponseEntity("User with given ID does not exist", HttpStatus.BAD_REQUEST);
+         }
+     }
+ }
+diff --git a/src/main/resources/application.properties b/src/main/resources/application.properties
+new file mode 100644
+index 0000000..716fe55
+--- /dev/null
++++ b/src/main/resources/application.properties
+@@ -0,0 +1,8 @@
++spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
++spring.datasource.url=jdbc:mysql://localhost:3306/coworkingspace
++spring.datasource.username=root
++spring.datasource.password=123456
++spring.jpa.hibernate.ddl-auto=update
++spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL5Dialect
++spring.jpa.properties.hibernate.format_sql=true
++server.error.include-message=always
+diff --git a/src/main/resources/application.yml b/src/main/resources/application.yml
+deleted file mode 100644
+index 99ebbbc..0000000
+--- a/src/main/resources/application.yml
++++ /dev/null
+@@ -1,14 +0,0 @@
+-spring:
+-  datasource:
+-    url: jdbc:h2:file:/Users/Shared/Coding/ZLI/Uek-Modul223_Co-Working
+-    driverClassName: org.h2.Driver
+-    username: root
+-    password: 123456
+-  jpa:
+-    database-platform: org.hibernate.dialect.H2Dialect
+-    defer-datasource-initialization: true
+-  sql:
+-    init:
+-      mode: always
+-  h2:
+-    console.enabled: true
+\ No newline at end of file
+diff --git a/src/main/resources/data.sql b/src/main/resources/data.sql
+deleted file mode 100644
+index 3d36579..0000000
+--- a/src/main/resources/data.sql
++++ /dev/null
+@@ -1,6 +0,0 @@
+-INSERT INTO MEMBER (id, name, lastname, email, password, role)
+-VALUES (1, 'Peter', 'Rutschmann', 'peter.rutschmann@gmail.com', 'test1234', 'ADMIN'),
+-       (2, 'Johannes', 'Höffliger', 'johannes.höffliger@gmail.com', 'test1234', 'MEMBER');
+-
+-INSERT INTO BOOKING (id, creator, day_duration, date, status)
+-VALUES (1, 1, 0.5, '2022-09-23', 'Pending');
+\ No newline at end of file
+diff --git a/src/main/resources/schema.sql b/src/main/resources/schema.sql
+deleted file mode 100644
+index 2a20b02..0000000
+--- a/src/main/resources/schema.sql
++++ /dev/null
+@@ -1,24 +0,0 @@
+-DROP TABLE IF EXISTS MEMBER CASCADE;
+-CREATE TABLE MEMBER
+-(
+-    id LONG NOT NULL,
+-    name VARCHAR(50) NOT NULL,
+-    lastname VARCHAR(50) NOT NULL,
+-    email VARCHAR(255) NOT NULL,
+-    password VARCHAR(255) NOT NULL,
+-    role VARCHAR(50) NOT NULL,
+-    PRIMARY KEY (id)
+-);
+-
+-DROP TABLE IF EXISTS BOOKING CASCADE;
+-CREATE TABLE BOOKING
+-(
+-    id LONG NOT NULL,
+-    creator int NOT NULL,
+-    day_duration int NOT NULL,
+-    date date NOT NULL,
+-    status VARCHAR(50) NOT NULL,
+-
+-    PRIMARY KEY (id),
+-    FOREIGN KEY (creator) REFERENCES MEMBER (id)
+-);
+
+commit 915ea779f8221435b4cb90edc0a20bd1c6ad25b5
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Mon Sep 19 13:42:48 2022 +0200
+
+    fixed sql syntax
+    
+    added get controller endpoint for testing
+
+diff --git a/pom.xml b/pom.xml
+index 7256408..f120f1c 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -46,6 +46,10 @@
+ 			<artifactId>spring-boot-starter-test</artifactId>
+ 			<scope>test</scope>
+ 		</dependency>
++		<dependency>
++			<groupId>com.h2database</groupId>
++			<artifactId>h2</artifactId>
++		</dependency>
+ 	</dependencies>
+ 	<build>
+ 		<plugins>
+diff --git a/src/main/java/ch/ms/coworkingspace/controller/UserController.java b/src/main/java/ch/ms/coworkingspace/controller/UserController.java
+new file mode 100644
+index 0000000..c71bc6e
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/controller/UserController.java
+@@ -0,0 +1,35 @@
++package ch.ms.coworkingspace.controller;
++
++import ch.ms.coworkingspace.model.User;
++import ch.ms.coworkingspace.service.UserService;
++import org.springframework.http.ResponseEntity;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RestController;
++
++import java.util.List;
++
++@RestController
++@RequestMapping("/user")
++public class UserController {
++
++    UserService userService;
++
++    public UserController(UserService userService) {
++        this.userService = userService;
++    }
++
++    @GetMapping("/all")
++    public ResponseEntity<User> getAllUsers(){
++        return userService.getAllUsers();
++    }
++
++    @GetMapping("/id")
++    public ResponseEntity<User> getUserById(Long id){
++        return userService.getUserById(id);
++    }
++
++
++
++
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/model/User.java b/src/main/java/ch/ms/coworkingspace/model/User.java
+index 0123dc4..5e05396 100644
+--- a/src/main/java/ch/ms/coworkingspace/model/User.java
++++ b/src/main/java/ch/ms/coworkingspace/model/User.java
+@@ -2,7 +2,7 @@ package ch.ms.coworkingspace.model;
+ 
+ import javax.persistence.*;
+ 
+-@Entity(name = "USER")
++@Entity(name = "MEMBER")
+ public class User {
+ 
+     @Id
+diff --git a/src/main/resources/application.yml b/src/main/resources/application.yml
+index c0153dc..99ebbbc 100644
+--- a/src/main/resources/application.yml
++++ b/src/main/resources/application.yml
+@@ -1,14 +1,14 @@
+ spring:
+-datasource:
+-url: jdbc:h2:file:/Users/Shared/Coding/ZLI/Uek-Modul223_Co-Working
+-driverClassName: org.h2.Driver
+-username: root
+-password: 123456
+-jpa:
+-database-platform: org.hibernate.dialect.H2Dialect
+-defer-datasource-initialization: true
+-sql:
+-init:
+-mode: always
+-h2:
+-console.enabled: true
++  datasource:
++    url: jdbc:h2:file:/Users/Shared/Coding/ZLI/Uek-Modul223_Co-Working
++    driverClassName: org.h2.Driver
++    username: root
++    password: 123456
++  jpa:
++    database-platform: org.hibernate.dialect.H2Dialect
++    defer-datasource-initialization: true
++  sql:
++    init:
++      mode: always
++  h2:
++    console.enabled: true
+\ No newline at end of file
+diff --git a/src/main/resources/data.sql b/src/main/resources/data.sql
+index e5eb711..3d36579 100644
+--- a/src/main/resources/data.sql
++++ b/src/main/resources/data.sql
+@@ -1,6 +1,6 @@
+-INSERT INTO USER (name, lastname, email, password, role)
+-VALUES ('Peter', 'Rutschmann', 'peter.rutschmann@gmail.com', 'test1234', 'ADMIN'),
+-       ('Johannes', 'Höffliger', 'johannes.höffliger@gmail.com', 'test1234', 'MEMBER'),
++INSERT INTO MEMBER (id, name, lastname, email, password, role)
++VALUES (1, 'Peter', 'Rutschmann', 'peter.rutschmann@gmail.com', 'test1234', 'ADMIN'),
++       (2, 'Johannes', 'Höffliger', 'johannes.höffliger@gmail.com', 'test1234', 'MEMBER');
+ 
+-INSERT INTO Booking (creator, date_duration, date)
+-VALUES (1, 0.5, '2022-09-23')
+\ No newline at end of file
++INSERT INTO BOOKING (id, creator, day_duration, date, status)
++VALUES (1, 1, 0.5, '2022-09-23', 'Pending');
+\ No newline at end of file
+diff --git a/src/main/resources/schema.sql b/src/main/resources/schema.sql
+index 3c84558..2a20b02 100644
+--- a/src/main/resources/schema.sql
++++ b/src/main/resources/schema.sql
+@@ -1,7 +1,7 @@
+-DROP TABLE IF EXISTS USER CASCADE;
+-CREATE TABLE USER
++DROP TABLE IF EXISTS MEMBER CASCADE;
++CREATE TABLE MEMBER
+ (
+-    id int,
++    id LONG NOT NULL,
+     name VARCHAR(50) NOT NULL,
+     lastname VARCHAR(50) NOT NULL,
+     email VARCHAR(255) NOT NULL,
+@@ -13,12 +13,12 @@ CREATE TABLE USER
+ DROP TABLE IF EXISTS BOOKING CASCADE;
+ CREATE TABLE BOOKING
+ (
+-    id int,
+-    user int NOT NULL,
++    id LONG NOT NULL,
++    creator int NOT NULL,
+     day_duration int NOT NULL,
+     date date NOT NULL,
+     status VARCHAR(50) NOT NULL,
+ 
+     PRIMARY KEY (id),
+-    FOREIGN KEY (category) REFERENCES CATEGORY (id)
++    FOREIGN KEY (creator) REFERENCES MEMBER (id)
+ );
+
+commit 02f48297b2c404df94aa6b0248f5f2526c16b39d
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Mon Sep 19 11:25:22 2022 +0200
+
+    added service classes
+
+diff --git a/src/main/java/ch/ms/coworkingspace/model/Booking.java b/src/main/java/ch/ms/coworkingspace/model/Booking.java
+index 27dc969..4f94319 100644
+--- a/src/main/java/ch/ms/coworkingspace/model/Booking.java
++++ b/src/main/java/ch/ms/coworkingspace/model/Booking.java
+@@ -20,4 +20,54 @@ public class Booking {
+     private LocalDate date = LocalDate.now();
+     @Column(name = "status", nullable = false)
+     private String status;
++
++
++    public Booking() {
++    }
++
++    public Booking(User creator, float dayDuration, LocalDate date, String status) {
++        this.creator = creator;
++        this.dayDuration = dayDuration;
++        this.date = date;
++        this.status = status;
++    }
++    public Long getId() {
++        return id;
++    }
++
++    public void setId(Long id) {
++        this.id = id;
++    }
++
++    public User getCreator() {
++        return creator;
++    }
++
++    public void setCreator(User creator) {
++        this.creator = creator;
++    }
++
++    public float getDayDuration() {
++        return dayDuration;
++    }
++
++    public void setDayDuration(float dayDuration) {
++        this.dayDuration = dayDuration;
++    }
++
++    public LocalDate getDate() {
++        return date;
++    }
++
++    public void setDate(LocalDate date) {
++        this.date = date;
++    }
++
++    public String getStatus() {
++        return status;
++    }
++
++    public void setStatus(String status) {
++        this.status = status;
++    }
+ }
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+index 6af005f..8ccfdd5 100644
+--- a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
++++ b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+@@ -4,6 +4,12 @@ import ch.ms.coworkingspace.model.Booking;
+ import org.springframework.data.repository.CrudRepository;
+ import org.springframework.stereotype.Repository;
+ 
++import java.util.List;
++import java.util.Optional;
++
+ @Repository
+ public interface BookingRepository extends CrudRepository<Booking, Long> {
++    Optional<Booking> findByCreator(Long id);
++
++    List<Booking> findAllByStatus(String status);
+ }
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java b/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
+index 106306d..822bbde 100644
+--- a/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
++++ b/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
+@@ -4,6 +4,9 @@ import ch.ms.coworkingspace.model.User;
+ import org.springframework.data.repository.CrudRepository;
+ import org.springframework.stereotype.Repository;
+ 
++import java.util.Optional;
++
+ @Repository
+ public interface UserRepository extends CrudRepository<User, Long> {
++    Optional<User> findByEmail(String email);
+ }
+diff --git a/src/main/java/ch/ms/coworkingspace/service/BookingService.java b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+new file mode 100644
+index 0000000..009c505
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/service/BookingService.java
+@@ -0,0 +1,91 @@
++package ch.ms.coworkingspace.service;
++
++import ch.ms.coworkingspace.model.Booking;
++import ch.ms.coworkingspace.repository.BookingRepository;
++import ch.ms.coworkingspace.repository.UserRepository;
++import org.springframework.http.HttpStatus;
++import org.springframework.http.ResponseEntity;
++import org.springframework.stereotype.Service;
++
++@Service
++public class BookingService {
++
++    BookingRepository bookingRepository;
++    UserRepository userRepository;
++
++    public BookingService(BookingRepository bookingRepository) {
++        this.bookingRepository = bookingRepository;
++        this.userRepository = userRepository;
++    }
++
++
++    //getBookings
++    public ResponseEntity getBookings() {
++        return new ResponseEntity(bookingRepository.findAll(), HttpStatus.OK);
++    }
++
++    //getBooking by user
++    public ResponseEntity getBookingByUser(Long id) {
++        boolean userExists = userRepository.existsById(id);
++        if(userExists){
++            return new ResponseEntity(bookingRepository.findByCreator(id), HttpStatus.OK);
++        }else{
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
++    }
++
++    //getBooking by status
++    public ResponseEntity getBookingByStatus(String status) {
++        return new ResponseEntity(bookingRepository.findAllByStatus(status), HttpStatus.OK);
++    }
++
++    //createBooking (user auth)
++    //TODO: add user to creator field
++    public ResponseEntity createBooking(Booking booking) {
++        bookingRepository.save(booking);
++        return new ResponseEntity(booking, HttpStatus.OK);
++    }
++
++    //updateBooking (Full booking update. Intended for admin emergency use)
++    public ResponseEntity updateBooking(Long id, Booking booking) {
++        boolean bookingExists = bookingRepository.existsById(id);
++        if(bookingExists){
++            Booking bookingToUpdate = bookingRepository.findById(id).get();
++            bookingToUpdate.setCreator(booking.getCreator());
++            bookingToUpdate.setDayDuration(booking.getDayDuration());
++            bookingToUpdate.setDate(booking.getDate());
++            bookingToUpdate.setStatus(booking.getStatus());
++            bookingRepository.save(bookingToUpdate);
++            return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
++        }else{
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
++    }
++
++    //updateBookingStatus
++    public ResponseEntity updateBookingStatus(Long id, Booking booking) {
++        boolean bookingExists = bookingRepository.existsById(id);
++        if(bookingExists){
++            Booking bookingToUpdate = bookingRepository.findById(id).get();
++            bookingToUpdate.setStatus(booking.getStatus());
++            bookingRepository.save(bookingToUpdate);
++            return new ResponseEntity(bookingToUpdate, HttpStatus.OK);
++        }else{
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
++    }
++
++    //deleteBooking by id
++    public ResponseEntity deleteBooking(Long id) {
++        boolean bookingExists = bookingRepository.existsById(id);
++        if(bookingExists){
++            bookingRepository.deleteById(id);
++            return new ResponseEntity(HttpStatus.OK);
++        }else{
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
++    }
++
++
++
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/service/UserService.java b/src/main/java/ch/ms/coworkingspace/service/UserService.java
+new file mode 100644
+index 0000000..4819923
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/service/UserService.java
+@@ -0,0 +1,71 @@
++package ch.ms.coworkingspace.service;
++
++import ch.ms.coworkingspace.model.User;
++import ch.ms.coworkingspace.repository.UserRepository;
++import org.springframework.http.HttpStatus;
++import org.springframework.http.ResponseEntity;
++import org.springframework.stereotype.Service;
++
++import java.util.List;
++import java.util.Optional;
++
++@Service
++public class UserService {
++
++    UserRepository userRepository;
++
++    public UserService(UserRepository userRepository) {
++        this.userRepository = userRepository;
++    }
++
++    public ResponseEntity<User>  getAllUsers() {
++        List<User> userList = (List<User>) userRepository.findAll();
++        return new ResponseEntity(userList, HttpStatus.OK);
++    }
++
++    public ResponseEntity<User> getUserById(Long id) {
++        boolean userExists = userRepository.existsById(id);
++        if(userExists){
++            User user = userRepository.findById(id).get();
++            return new ResponseEntity(user, HttpStatus.OK);
++        }else{
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
++    }
++
++    public ResponseEntity<User> updateUserById(Long id, User user) {
++        boolean userExists = userRepository.existsById(id);
++        if(userExists){
++            User userToUpdate = userRepository.findById(id).get();
++            userToUpdate.setName(user.getName());
++            userToUpdate.setLastname(user.getLastname());
++            userToUpdate.setEmail(user.getEmail());
++            userToUpdate.setPassword(user.getPassword());
++            userToUpdate.setRole(user.getRole());
++            userRepository.save(userToUpdate);
++            return new ResponseEntity(userToUpdate, HttpStatus.OK);
++        }else{
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
++    }
++
++    public ResponseEntity<User> createUser(User user) {
++        Optional<User> userOptional = userRepository.findByEmail(user.getEmail());
++        if(userOptional.isPresent()) {
++            return new ResponseEntity(HttpStatus.CONFLICT);
++        }else{
++            userRepository.save(user);
++            return new ResponseEntity(user, HttpStatus.OK);
++        }
++    }
++
++    public ResponseEntity<User> deleteUserById(Long id) {
++        boolean userExists = userRepository.existsById(id);
++        if(userExists){
++            userRepository.deleteById(id);
++            return new ResponseEntity(HttpStatus.OK);
++        }else{
++            return new ResponseEntity(HttpStatus.NOT_FOUND);
++        }
++    }
++}
+
+commit 98762857cf954d522e16ad7728c79ba9a14275d8
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Mon Sep 19 10:41:34 2022 +0200
+
+    created base Repositories
+
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+new file mode 100644
+index 0000000..6af005f
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/repository/BookingRepository.java
+@@ -0,0 +1,9 @@
++package ch.ms.coworkingspace.repository;
++
++import ch.ms.coworkingspace.model.Booking;
++import org.springframework.data.repository.CrudRepository;
++import org.springframework.stereotype.Repository;
++
++@Repository
++public interface BookingRepository extends CrudRepository<Booking, Long> {
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java b/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
+new file mode 100644
+index 0000000..106306d
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/repository/UserRepository.java
+@@ -0,0 +1,9 @@
++package ch.ms.coworkingspace.repository;
++
++import ch.ms.coworkingspace.model.User;
++import org.springframework.data.repository.CrudRepository;
++import org.springframework.stereotype.Repository;
++
++@Repository
++public interface UserRepository extends CrudRepository<User, Long> {
++}
+
+commit da69e7cd75929278bccc1e1ff161bf1b4dce9c8b
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Mon Sep 19 10:39:21 2022 +0200
+
+    added models
+    
+    Creation of Models with Annotations and References
+
+diff --git a/src/main/java/ch/ms/coworkingspace/model/Booking.java b/src/main/java/ch/ms/coworkingspace/model/Booking.java
+new file mode 100644
+index 0000000..27dc969
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/model/Booking.java
+@@ -0,0 +1,23 @@
++package ch.ms.coworkingspace.model;
++
++import org.hibernate.type.LocalDateType;
++
++import javax.persistence.*;
++import java.time.LocalDate;
++
++@Entity(name = "BOOKING")
++public class Booking {
++
++    @Id
++    @GeneratedValue(strategy = GenerationType.AUTO)
++    private Long id;
++    @ManyToOne
++    @JoinColumn(name = "creator", referencedColumnName = "id")
++    private User creator;
++    @Column(name = "day_duration", nullable = false)
++    private float dayDuration;
++    @Column(name = "date", nullable = false)
++    private LocalDate date = LocalDate.now();
++    @Column(name = "status", nullable = false)
++    private String status;
++}
+diff --git a/src/main/java/ch/ms/coworkingspace/model/User.java b/src/main/java/ch/ms/coworkingspace/model/User.java
+new file mode 100644
+index 0000000..0123dc4
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/model/User.java
+@@ -0,0 +1,82 @@
++package ch.ms.coworkingspace.model;
++
++import javax.persistence.*;
++
++@Entity(name = "USER")
++public class User {
++
++    @Id
++    @GeneratedValue(strategy = GenerationType.AUTO)
++    private Long id;
++
++    @Column(name = "name", nullable = false)
++    private String name;
++    @Column(name = "lastname", nullable = false)
++    private String lastname;
++    @Column(name = "email", nullable = false)
++    private String email;
++    @Column(name = "password", nullable = false)
++    private String password;
++    @Column(name = "role", nullable = false)
++    private String role;
++
++
++    public User() {
++    }
++
++    public User(String name, String lastname, String email, String password, String role) {
++        this.name = name;
++        this.lastname = lastname;
++        this.email = email;
++        this.password = password;
++        this.role = role;
++    }
++
++    public Long getId() {
++        return id;
++    }
++
++    public void setId(Long id) {
++        this.id = id;
++    }
++
++    public String getName() {
++        return name;
++    }
++
++    public void setName(String name) {
++        this.name = name;
++    }
++
++    public String getLastname() {
++        return lastname;
++    }
++
++    public void setLastname(String lastname) {
++        this.lastname = lastname;
++    }
++
++    public String getEmail() {
++        return email;
++    }
++
++    public void setEmail(String email) {
++        this.email = email;
++    }
++
++    public String getPassword() {
++        return password;
++    }
++
++    public void setPassword(String password) {
++        this.password = password;
++    }
++
++    public String getRole() {
++        return role;
++    }
++
++    public void setRole(String role) {
++        this.role = role;
++    }
++}
+
+commit 81de214ea54661ff8e5d4857c4ecd3cee82165dc
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Mon Sep 19 10:22:06 2022 +0200
+
+    added dependencies and test data
+
+diff --git a/src/main/resources/application.properties b/src/main/resources/application.properties
+deleted file mode 100644
+index 8b13789..0000000
+--- a/src/main/resources/application.properties
++++ /dev/null
+@@ -1 +0,0 @@
+-
+diff --git a/src/main/resources/application.yml b/src/main/resources/application.yml
+new file mode 100644
+index 0000000..c0153dc
+--- /dev/null
++++ b/src/main/resources/application.yml
+@@ -0,0 +1,14 @@
++spring:
++datasource:
++url: jdbc:h2:file:/Users/Shared/Coding/ZLI/Uek-Modul223_Co-Working
++driverClassName: org.h2.Driver
++username: root
++password: 123456
++jpa:
++database-platform: org.hibernate.dialect.H2Dialect
++defer-datasource-initialization: true
++sql:
++init:
++mode: always
++h2:
++console.enabled: true
+diff --git a/src/main/resources/data.sql b/src/main/resources/data.sql
+new file mode 100644
+index 0000000..e5eb711
+--- /dev/null
++++ b/src/main/resources/data.sql
+@@ -0,0 +1,6 @@
++INSERT INTO USER (name, lastname, email, password, role)
++VALUES ('Peter', 'Rutschmann', 'peter.rutschmann@gmail.com', 'test1234', 'ADMIN'),
++       ('Johannes', 'Höffliger', 'johannes.höffliger@gmail.com', 'test1234', 'MEMBER'),
++
++INSERT INTO Booking (creator, date_duration, date)
++VALUES (1, 0.5, '2022-09-23')
+\ No newline at end of file
+diff --git a/src/main/resources/schema.sql b/src/main/resources/schema.sql
+new file mode 100644
+index 0000000..3c84558
+--- /dev/null
++++ b/src/main/resources/schema.sql
+@@ -0,0 +1,24 @@
++DROP TABLE IF EXISTS USER CASCADE;
++CREATE TABLE USER
++(
++    id int,
++    name VARCHAR(50) NOT NULL,
++    lastname VARCHAR(50) NOT NULL,
++    email VARCHAR(255) NOT NULL,
++    password VARCHAR(255) NOT NULL,
++    role VARCHAR(50) NOT NULL,
++    PRIMARY KEY (id)
++);
++
++DROP TABLE IF EXISTS BOOKING CASCADE;
++CREATE TABLE BOOKING
++(
++    id int,
++    user int NOT NULL,
++    day_duration int NOT NULL,
++    date date NOT NULL,
++    status VARCHAR(50) NOT NULL,
++
++    PRIMARY KEY (id),
++    FOREIGN KEY (category) REFERENCES CATEGORY (id)
++);
+
+commit dcfb70cd6e16b89465016d0defc4ed9cce251c24
+Author: Schmid Maximilian, GHR-OSA-NEX-31 <Maxi03milian@gmail.com>
+Date:   Mon Sep 19 09:29:08 2022 +0200
+
+    initial commit with base project
+    
+    Added base Spring project with dependencies
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..74222c1
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,7 @@
++# file: ~/.gitignore_global
++.DS_Store
++.idea
++*mysql_db_data
++
++/docker-compose.yml
++/target
+\ No newline at end of file
+diff --git a/HELP.md b/HELP.md
+new file mode 100644
+index 0000000..2af81d4
+--- /dev/null
++++ b/HELP.md
+@@ -0,0 +1,20 @@
++# Getting Started
++
++### Reference Documentation
++For further reference, please consider the following sections:
++
++* [Official Apache Maven documentation](https://maven.apache.org/guides/index.html)
++* [Spring Boot Maven Plugin Reference Guide](https://docs.spring.io/spring-boot/docs/2.7.3/maven-plugin/reference/html/)
++* [Create an OCI image](https://docs.spring.io/spring-boot/docs/2.7.3/maven-plugin/reference/html/#build-image)
++* [Spring Web](https://docs.spring.io/spring-boot/docs/2.7.3/reference/htmlsingle/#web)
++* [Spring Data JPA](https://docs.spring.io/spring-boot/docs/2.7.3/reference/htmlsingle/#data.sql.jpa-and-spring-data)
++
++### Guides
++The following guides illustrate how to use some features concretely:
++
++* [Building a RESTful Web Service](https://spring.io/guides/gs/rest-service/)
++* [Serving Web Content with Spring MVC](https://spring.io/guides/gs/serving-web-content/)
++* [Building REST services with Spring](https://spring.io/guides/tutorials/rest/)
++* [Accessing Data with JPA](https://spring.io/guides/gs/accessing-data-jpa/)
++* [Accessing data with MySQL](https://spring.io/guides/gs/accessing-data-mysql/)
++
+diff --git a/mvnw b/mvnw
+new file mode 100755
+index 0000000..8a8fb22
+--- /dev/null
++++ b/mvnw
+@@ -0,0 +1,316 @@
++#!/bin/sh
++# ----------------------------------------------------------------------------
++# Licensed to the Apache Software Foundation (ASF) under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  The ASF licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#    https://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing,
++# software distributed under the License is distributed on an
++# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++# KIND, either express or implied.  See the License for the
++# specific language governing permissions and limitations
++# under the License.
++# ----------------------------------------------------------------------------
++
++# ----------------------------------------------------------------------------
++# Maven Start Up Batch script
++#
++# Required ENV vars:
++# ------------------
++#   JAVA_HOME - location of a JDK home dir
++#
++# Optional ENV vars
++# -----------------
++#   M2_HOME - location of maven2's installed home dir
++#   MAVEN_OPTS - parameters passed to the Java VM when running Maven
++#     e.g. to debug Maven itself, use
++#       set MAVEN_OPTS=-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=8000
++#   MAVEN_SKIP_RC - flag to disable loading of mavenrc files
++# ----------------------------------------------------------------------------
++
++if [ -z "$MAVEN_SKIP_RC" ] ; then
++
++  if [ -f /usr/local/etc/mavenrc ] ; then
++    . /usr/local/etc/mavenrc
++  fi
++
++  if [ -f /etc/mavenrc ] ; then
++    . /etc/mavenrc
++  fi
++
++  if [ -f "$HOME/.mavenrc" ] ; then
++    . "$HOME/.mavenrc"
++  fi
++
++fi
++
++# OS specific support.  $var _must_ be set to either true or false.
++cygwin=false;
++darwin=false;
++mingw=false
++case "`uname`" in
++  CYGWIN*) cygwin=true ;;
++  MINGW*) mingw=true;;
++  Darwin*) darwin=true
++    # Use /usr/libexec/java_home if available, otherwise fall back to /Library/Java/Home
++    # See https://developer.apple.com/library/mac/qa/qa1170/_index.html
++    if [ -z "$JAVA_HOME" ]; then
++      if [ -x "/usr/libexec/java_home" ]; then
++        export JAVA_HOME="`/usr/libexec/java_home`"
++      else
++        export JAVA_HOME="/Library/Java/Home"
++      fi
++    fi
++    ;;
++esac
++
++if [ -z "$JAVA_HOME" ] ; then
++  if [ -r /etc/gentoo-release ] ; then
++    JAVA_HOME=`java-config --jre-home`
++  fi
++fi
++
++if [ -z "$M2_HOME" ] ; then
++  ## resolve links - $0 may be a link to maven's home
++  PRG="$0"
++
++  # need this for relative symlinks
++  while [ -h "$PRG" ] ; do
++    ls=`ls -ld "$PRG"`
++    link=`expr "$ls" : '.*-> \(.*\)$'`
++    if expr "$link" : '/.*' > /dev/null; then
++      PRG="$link"
++    else
++      PRG="`dirname "$PRG"`/$link"
++    fi
++  done
++
++  saveddir=`pwd`
++
++  M2_HOME=`dirname "$PRG"`/..
++
++  # make it fully qualified
++  M2_HOME=`cd "$M2_HOME" && pwd`
++
++  cd "$saveddir"
++  # echo Using m2 at $M2_HOME
++fi
++
++# For Cygwin, ensure paths are in UNIX format before anything is touched
++if $cygwin ; then
++  [ -n "$M2_HOME" ] &&
++    M2_HOME=`cygpath --unix "$M2_HOME"`
++  [ -n "$JAVA_HOME" ] &&
++    JAVA_HOME=`cygpath --unix "$JAVA_HOME"`
++  [ -n "$CLASSPATH" ] &&
++    CLASSPATH=`cygpath --path --unix "$CLASSPATH"`
++fi
++
++# For Mingw, ensure paths are in UNIX format before anything is touched
++if $mingw ; then
++  [ -n "$M2_HOME" ] &&
++    M2_HOME="`(cd "$M2_HOME"; pwd)`"
++  [ -n "$JAVA_HOME" ] &&
++    JAVA_HOME="`(cd "$JAVA_HOME"; pwd)`"
++fi
++
++if [ -z "$JAVA_HOME" ]; then
++  javaExecutable="`which javac`"
++  if [ -n "$javaExecutable" ] && ! [ "`expr \"$javaExecutable\" : '\([^ ]*\)'`" = "no" ]; then
++    # readlink(1) is not available as standard on Solaris 10.
++    readLink=`which readlink`
++    if [ ! `expr "$readLink" : '\([^ ]*\)'` = "no" ]; then
++      if $darwin ; then
++        javaHome="`dirname \"$javaExecutable\"`"
++        javaExecutable="`cd \"$javaHome\" && pwd -P`/javac"
++      else
++        javaExecutable="`readlink -f \"$javaExecutable\"`"
++      fi
++      javaHome="`dirname \"$javaExecutable\"`"
++      javaHome=`expr "$javaHome" : '\(.*\)/bin'`
++      JAVA_HOME="$javaHome"
++      export JAVA_HOME
++    fi
++  fi
++fi
++
++if [ -z "$JAVACMD" ] ; then
++  if [ -n "$JAVA_HOME"  ] ; then
++    if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
++      # IBM's JDK on AIX uses strange locations for the executables
++      JAVACMD="$JAVA_HOME/jre/sh/java"
++    else
++      JAVACMD="$JAVA_HOME/bin/java"
++    fi
++  else
++    JAVACMD="`\\unset -f command; \\command -v java`"
++  fi
++fi
++
++if [ ! -x "$JAVACMD" ] ; then
++  echo "Error: JAVA_HOME is not defined correctly." >&2
++  echo "  We cannot execute $JAVACMD" >&2
++  exit 1
++fi
++
++if [ -z "$JAVA_HOME" ] ; then
++  echo "Warning: JAVA_HOME environment variable is not set."
++fi
++
++CLASSWORLDS_LAUNCHER=org.codehaus.plexus.classworlds.launcher.Launcher
++
++# traverses directory structure from process work directory to filesystem root
++# first directory with .mvn subdirectory is considered project base directory
++find_maven_basedir() {
++
++  if [ -z "$1" ]
++  then
++    echo "Path not specified to find_maven_basedir"
++    return 1
++  fi
++
++  basedir="$1"
++  wdir="$1"
++  while [ "$wdir" != '/' ] ; do
++    if [ -d "$wdir"/.mvn ] ; then
++      basedir=$wdir
++      break
++    fi
++    # workaround for JBEAP-8937 (on Solaris 10/Sparc)
++    if [ -d "${wdir}" ]; then
++      wdir=`cd "$wdir/.."; pwd`
++    fi
++    # end of workaround
++  done
++  echo "${basedir}"
++}
++
++# concatenates all lines of a file
++concat_lines() {
++  if [ -f "$1" ]; then
++    echo "$(tr -s '\n' ' ' < "$1")"
++  fi
++}
++
++BASE_DIR=`find_maven_basedir "$(pwd)"`
++if [ -z "$BASE_DIR" ]; then
++  exit 1;
++fi
++
++##########################################################################################
++# Extension to allow automatically downloading the maven-wrapper.jar from Maven-central
++# This allows using the maven wrapper in projects that prohibit checking in binary data.
++##########################################################################################
++if [ -r "$BASE_DIR/.mvn/wrapper/maven-wrapper.jar" ]; then
++    if [ "$MVNW_VERBOSE" = true ]; then
++      echo "Found .mvn/wrapper/maven-wrapper.jar"
++    fi
++else
++    if [ "$MVNW_VERBOSE" = true ]; then
++      echo "Couldn't find .mvn/wrapper/maven-wrapper.jar, downloading it ..."
++    fi
++    if [ -n "$MVNW_REPOURL" ]; then
++      jarUrl="$MVNW_REPOURL/org/apache/maven/wrapper/maven-wrapper/3.1.0/maven-wrapper-3.1.0.jar"
++    else
++      jarUrl="https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.1.0/maven-wrapper-3.1.0.jar"
++    fi
++    while IFS="=" read key value; do
++      case "$key" in (wrapperUrl) jarUrl="$value"; break ;;
++      esac
++    done < "$BASE_DIR/.mvn/wrapper/maven-wrapper.properties"
++    if [ "$MVNW_VERBOSE" = true ]; then
++      echo "Downloading from: $jarUrl"
++    fi
++    wrapperJarPath="$BASE_DIR/.mvn/wrapper/maven-wrapper.jar"
++    if $cygwin; then
++      wrapperJarPath=`cygpath --path --windows "$wrapperJarPath"`
++    fi
++
++    if command -v wget > /dev/null; then
++        if [ "$MVNW_VERBOSE" = true ]; then
++          echo "Found wget ... using wget"
++        fi
++        if [ -z "$MVNW_USERNAME" ] || [ -z "$MVNW_PASSWORD" ]; then
++            wget "$jarUrl" -O "$wrapperJarPath" || rm -f "$wrapperJarPath"
++        else
++            wget --http-user=$MVNW_USERNAME --http-password=$MVNW_PASSWORD "$jarUrl" -O "$wrapperJarPath" || rm -f "$wrapperJarPath"
++        fi
++    elif command -v curl > /dev/null; then
++        if [ "$MVNW_VERBOSE" = true ]; then
++          echo "Found curl ... using curl"
++        fi
++        if [ -z "$MVNW_USERNAME" ] || [ -z "$MVNW_PASSWORD" ]; then
++            curl -o "$wrapperJarPath" "$jarUrl" -f
++        else
++            curl --user $MVNW_USERNAME:$MVNW_PASSWORD -o "$wrapperJarPath" "$jarUrl" -f
++        fi
++
++    else
++        if [ "$MVNW_VERBOSE" = true ]; then
++          echo "Falling back to using Java to download"
++        fi
++        javaClass="$BASE_DIR/.mvn/wrapper/MavenWrapperDownloader.java"
++        # For Cygwin, switch paths to Windows format before running javac
++        if $cygwin; then
++          javaClass=`cygpath --path --windows "$javaClass"`
++        fi
++        if [ -e "$javaClass" ]; then
++            if [ ! -e "$BASE_DIR/.mvn/wrapper/MavenWrapperDownloader.class" ]; then
++                if [ "$MVNW_VERBOSE" = true ]; then
++                  echo " - Compiling MavenWrapperDownloader.java ..."
++                fi
++                # Compiling the Java class
++                ("$JAVA_HOME/bin/javac" "$javaClass")
++            fi
++            if [ -e "$BASE_DIR/.mvn/wrapper/MavenWrapperDownloader.class" ]; then
++                # Running the downloader
++                if [ "$MVNW_VERBOSE" = true ]; then
++                  echo " - Running MavenWrapperDownloader.java ..."
++                fi
++                ("$JAVA_HOME/bin/java" -cp .mvn/wrapper MavenWrapperDownloader "$MAVEN_PROJECTBASEDIR")
++            fi
++        fi
++    fi
++fi
++##########################################################################################
++# End of extension
++##########################################################################################
++
++export MAVEN_PROJECTBASEDIR=${MAVEN_BASEDIR:-"$BASE_DIR"}
++if [ "$MVNW_VERBOSE" = true ]; then
++  echo $MAVEN_PROJECTBASEDIR
++fi
++MAVEN_OPTS="$(concat_lines "$MAVEN_PROJECTBASEDIR/.mvn/jvm.config") $MAVEN_OPTS"
++
++# For Cygwin, switch paths to Windows format before running java
++if $cygwin; then
++  [ -n "$M2_HOME" ] &&
++    M2_HOME=`cygpath --path --windows "$M2_HOME"`
++  [ -n "$JAVA_HOME" ] &&
++    JAVA_HOME=`cygpath --path --windows "$JAVA_HOME"`
++  [ -n "$CLASSPATH" ] &&
++    CLASSPATH=`cygpath --path --windows "$CLASSPATH"`
++  [ -n "$MAVEN_PROJECTBASEDIR" ] &&
++    MAVEN_PROJECTBASEDIR=`cygpath --path --windows "$MAVEN_PROJECTBASEDIR"`
++fi
++
++# Provide a "standardized" way to retrieve the CLI args that will
++# work with both Windows and non-Windows executions.
++MAVEN_CMD_LINE_ARGS="$MAVEN_CONFIG $@"
++export MAVEN_CMD_LINE_ARGS
++
++WRAPPER_LAUNCHER=org.apache.maven.wrapper.MavenWrapperMain
++
++exec "$JAVACMD" \
++  $MAVEN_OPTS \
++  $MAVEN_DEBUG_OPTS \
++  -classpath "$MAVEN_PROJECTBASEDIR/.mvn/wrapper/maven-wrapper.jar" \
++  "-Dmaven.home=${M2_HOME}" \
++  "-Dmaven.multiModuleProjectDirectory=${MAVEN_PROJECTBASEDIR}" \
++  ${WRAPPER_LAUNCHER} $MAVEN_CONFIG "$@"
+diff --git a/mvnw.cmd b/mvnw.cmd
+new file mode 100644
+index 0000000..1d8ab01
+--- /dev/null
++++ b/mvnw.cmd
+@@ -0,0 +1,188 @@
++@REM ----------------------------------------------------------------------------
++@REM Licensed to the Apache Software Foundation (ASF) under one
++@REM or more contributor license agreements.  See the NOTICE file
++@REM distributed with this work for additional information
++@REM regarding copyright ownership.  The ASF licenses this file
++@REM to you under the Apache License, Version 2.0 (the
++@REM "License"); you may not use this file except in compliance
++@REM with the License.  You may obtain a copy of the License at
++@REM
++@REM    https://www.apache.org/licenses/LICENSE-2.0
++@REM
++@REM Unless required by applicable law or agreed to in writing,
++@REM software distributed under the License is distributed on an
++@REM "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++@REM KIND, either express or implied.  See the License for the
++@REM specific language governing permissions and limitations
++@REM under the License.
++@REM ----------------------------------------------------------------------------
++
++@REM ----------------------------------------------------------------------------
++@REM Maven Start Up Batch script
++@REM
++@REM Required ENV vars:
++@REM JAVA_HOME - location of a JDK home dir
++@REM
++@REM Optional ENV vars
++@REM M2_HOME - location of maven2's installed home dir
++@REM MAVEN_BATCH_ECHO - set to 'on' to enable the echoing of the batch commands
++@REM MAVEN_BATCH_PAUSE - set to 'on' to wait for a keystroke before ending
++@REM MAVEN_OPTS - parameters passed to the Java VM when running Maven
++@REM     e.g. to debug Maven itself, use
++@REM set MAVEN_OPTS=-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=8000
++@REM MAVEN_SKIP_RC - flag to disable loading of mavenrc files
++@REM ----------------------------------------------------------------------------
++
++@REM Begin all REM lines with '@' in case MAVEN_BATCH_ECHO is 'on'
++@echo off
++@REM set title of command window
++title %0
++@REM enable echoing by setting MAVEN_BATCH_ECHO to 'on'
++@if "%MAVEN_BATCH_ECHO%" == "on"  echo %MAVEN_BATCH_ECHO%
++
++@REM set %HOME% to equivalent of $HOME
++if "%HOME%" == "" (set "HOME=%HOMEDRIVE%%HOMEPATH%")
++
++@REM Execute a user defined script before this one
++if not "%MAVEN_SKIP_RC%" == "" goto skipRcPre
++@REM check for pre script, once with legacy .bat ending and once with .cmd ending
++if exist "%USERPROFILE%\mavenrc_pre.bat" call "%USERPROFILE%\mavenrc_pre.bat" %*
++if exist "%USERPROFILE%\mavenrc_pre.cmd" call "%USERPROFILE%\mavenrc_pre.cmd" %*
++:skipRcPre
++
++@setlocal
++
++set ERROR_CODE=0
++
++@REM To isolate internal variables from possible post scripts, we use another setlocal
++@setlocal
++
++@REM ==== START VALIDATION ====
++if not "%JAVA_HOME%" == "" goto OkJHome
++
++echo.
++echo Error: JAVA_HOME not found in your environment. >&2
++echo Please set the JAVA_HOME variable in your environment to match the >&2
++echo location of your Java installation. >&2
++echo.
++goto error
++
++:OkJHome
++if exist "%JAVA_HOME%\bin\java.exe" goto init
++
++echo.
++echo Error: JAVA_HOME is set to an invalid directory. >&2
++echo JAVA_HOME = "%JAVA_HOME%" >&2
++echo Please set the JAVA_HOME variable in your environment to match the >&2
++echo location of your Java installation. >&2
++echo.
++goto error
++
++@REM ==== END VALIDATION ====
++
++:init
++
++@REM Find the project base dir, i.e. the directory that contains the folder ".mvn".
++@REM Fallback to current working directory if not found.
++
++set MAVEN_PROJECTBASEDIR=%MAVEN_BASEDIR%
++IF NOT "%MAVEN_PROJECTBASEDIR%"=="" goto endDetectBaseDir
++
++set EXEC_DIR=%CD%
++set WDIR=%EXEC_DIR%
++:findBaseDir
++IF EXIST "%WDIR%"\.mvn goto baseDirFound
++cd ..
++IF "%WDIR%"=="%CD%" goto baseDirNotFound
++set WDIR=%CD%
++goto findBaseDir
++
++:baseDirFound
++set MAVEN_PROJECTBASEDIR=%WDIR%
++cd "%EXEC_DIR%"
++goto endDetectBaseDir
++
++:baseDirNotFound
++set MAVEN_PROJECTBASEDIR=%EXEC_DIR%
++cd "%EXEC_DIR%"
++
++:endDetectBaseDir
++
++IF NOT EXIST "%MAVEN_PROJECTBASEDIR%\.mvn\jvm.config" goto endReadAdditionalConfig
++
++@setlocal EnableExtensions EnableDelayedExpansion
++for /F "usebackq delims=" %%a in ("%MAVEN_PROJECTBASEDIR%\.mvn\jvm.config") do set JVM_CONFIG_MAVEN_PROPS=!JVM_CONFIG_MAVEN_PROPS! %%a
++@endlocal & set JVM_CONFIG_MAVEN_PROPS=%JVM_CONFIG_MAVEN_PROPS%
++
++:endReadAdditionalConfig
++
++SET MAVEN_JAVA_EXE="%JAVA_HOME%\bin\java.exe"
++set WRAPPER_JAR="%MAVEN_PROJECTBASEDIR%\.mvn\wrapper\maven-wrapper.jar"
++set WRAPPER_LAUNCHER=org.apache.maven.wrapper.MavenWrapperMain
++
++set DOWNLOAD_URL="https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.1.0/maven-wrapper-3.1.0.jar"
++
++FOR /F "usebackq tokens=1,2 delims==" %%A IN ("%MAVEN_PROJECTBASEDIR%\.mvn\wrapper\maven-wrapper.properties") DO (
++    IF "%%A"=="wrapperUrl" SET DOWNLOAD_URL=%%B
++)
++
++@REM Extension to allow automatically downloading the maven-wrapper.jar from Maven-central
++@REM This allows using the maven wrapper in projects that prohibit checking in binary data.
++if exist %WRAPPER_JAR% (
++    if "%MVNW_VERBOSE%" == "true" (
++        echo Found %WRAPPER_JAR%
++    )
++) else (
++    if not "%MVNW_REPOURL%" == "" (
++        SET DOWNLOAD_URL="%MVNW_REPOURL%/org/apache/maven/wrapper/maven-wrapper/3.1.0/maven-wrapper-3.1.0.jar"
++    )
++    if "%MVNW_VERBOSE%" == "true" (
++        echo Couldn't find %WRAPPER_JAR%, downloading it ...
++        echo Downloading from: %DOWNLOAD_URL%
++    )
++
++    powershell -Command "&{"^
++		"$webclient = new-object System.Net.WebClient;"^
++		"if (-not ([string]::IsNullOrEmpty('%MVNW_USERNAME%') -and [string]::IsNullOrEmpty('%MVNW_PASSWORD%'))) {"^
++		"$webclient.Credentials = new-object System.Net.NetworkCredential('%MVNW_USERNAME%', '%MVNW_PASSWORD%');"^
++		"}"^
++		"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $webclient.DownloadFile('%DOWNLOAD_URL%', '%WRAPPER_JAR%')"^
++		"}"
++    if "%MVNW_VERBOSE%" == "true" (
++        echo Finished downloading %WRAPPER_JAR%
++    )
++)
++@REM End of extension
++
++@REM Provide a "standardized" way to retrieve the CLI args that will
++@REM work with both Windows and non-Windows executions.
++set MAVEN_CMD_LINE_ARGS=%*
++
++%MAVEN_JAVA_EXE% ^
++  %JVM_CONFIG_MAVEN_PROPS% ^
++  %MAVEN_OPTS% ^
++  %MAVEN_DEBUG_OPTS% ^
++  -classpath %WRAPPER_JAR% ^
++  "-Dmaven.multiModuleProjectDirectory=%MAVEN_PROJECTBASEDIR%" ^
++  %WRAPPER_LAUNCHER% %MAVEN_CONFIG% %*
++if ERRORLEVEL 1 goto error
++goto end
++
++:error
++set ERROR_CODE=1
++
++:end
++@endlocal & set ERROR_CODE=%ERROR_CODE%
++
++if not "%MAVEN_SKIP_RC%"=="" goto skipRcPost
++@REM check for post script, once with legacy .bat ending and once with .cmd ending
++if exist "%USERPROFILE%\mavenrc_post.bat" call "%USERPROFILE%\mavenrc_post.bat"
++if exist "%USERPROFILE%\mavenrc_post.cmd" call "%USERPROFILE%\mavenrc_post.cmd"
++:skipRcPost
++
++@REM pause the script if MAVEN_BATCH_PAUSE is set to 'on'
++if "%MAVEN_BATCH_PAUSE%"=="on" pause
++
++if "%MAVEN_TERMINATE_CMD%"=="on" exit %ERROR_CODE%
++
++cmd /C exit /B %ERROR_CODE%
+diff --git a/pom.xml b/pom.xml
+new file mode 100644
+index 0000000..7256408
+--- /dev/null
++++ b/pom.xml
+@@ -0,0 +1,59 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
++	<modelVersion>4.0.0</modelVersion>
++	<parent>
++		<groupId>org.springframework.boot</groupId>
++		<artifactId>spring-boot-starter-parent</artifactId>
++		<version>2.7.3</version>
++		<relativePath/> <!-- lookup parent from repository -->
++	</parent>
++	<groupId>ch.ms</groupId>
++	<artifactId>coworkingspace</artifactId>
++	<version>0.0.1-SNAPSHOT</version>
++	<name>coworkingspace</name>
++	<description>Abgabe Projekt für Uek Modul 223</description>
++	<properties>
++		<java.version>17</java.version>
++	</properties>
++	<dependencies>
++		<dependency>
++			<groupId>org.springframework.boot</groupId>
++			<artifactId>spring-boot-starter-data-jpa</artifactId>
++		</dependency>
++		<dependency>
++			<groupId>org.springframework.boot</groupId>
++			<artifactId>spring-boot-starter-web</artifactId>
++		</dependency>
++		<dependency>
++			<groupId>com.h2database</groupId>
++			<artifactId>h2</artifactId>
++			<version>2.1.214</version>
++			<scope>test</scope>
++		</dependency>
++		<dependency>
++			<groupId>com.auth0</groupId>
++			<artifactId>java-jwt</artifactId>
++			<version>4.0.0</version>
++		</dependency>
++		<dependency>
++			<groupId>org.springdoc</groupId>
++			<artifactId>springdoc-openapi-ui</artifactId>
++			<version>1.6.11</version>
++		</dependency>
++		<dependency>
++			<groupId>org.springframework.boot</groupId>
++			<artifactId>spring-boot-starter-test</artifactId>
++			<scope>test</scope>
++		</dependency>
++	</dependencies>
++	<build>
++		<plugins>
++			<plugin>
++				<groupId>org.springframework.boot</groupId>
++				<artifactId>spring-boot-maven-plugin</artifactId>
++			</plugin>
++		</plugins>
++	</build>
++
++</project>
+diff --git a/src/main/java/ch/ms/coworkingspace/CoworkingspaceApplication.java b/src/main/java/ch/ms/coworkingspace/CoworkingspaceApplication.java
+new file mode 100644
+index 0000000..367312d
+--- /dev/null
++++ b/src/main/java/ch/ms/coworkingspace/CoworkingspaceApplication.java
+@@ -0,0 +1,13 @@
++package ch.ms.coworkingspace;
++
++import org.springframework.boot.SpringApplication;
++import org.springframework.boot.autoconfigure.SpringBootApplication;
++
++@SpringBootApplication
++public class CoworkingspaceApplication {
++
++	public static void main(String[] args) {
++		SpringApplication.run(CoworkingspaceApplication.class, args);
++	}
++
++}
+diff --git a/src/main/resources/application.properties b/src/main/resources/application.properties
+new file mode 100644
+index 0000000..8b13789
+--- /dev/null
++++ b/src/main/resources/application.properties
+@@ -0,0 +1 @@
++
+diff --git a/src/test/java/ch/ms/coworkingspace/CoworkingspaceApplicationTests.java b/src/test/java/ch/ms/coworkingspace/CoworkingspaceApplicationTests.java
+new file mode 100644
+index 0000000..eeecff7
+--- /dev/null
++++ b/src/test/java/ch/ms/coworkingspace/CoworkingspaceApplicationTests.java
+@@ -0,0 +1,13 @@
++package ch.ms.coworkingspace;
++
++import org.junit.jupiter.api.Test;
++import org.springframework.boot.test.context.SpringBootTest;
++
++@SpringBootTest
++class CoworkingspaceApplicationTests {
++
++	@Test
++	void contextLoads() {
++	}
++
++}
+
+commit c34b675b9e82813209a601117acd032404306a1e
+Author: Maxi <46729527+Maxi03milian@users.noreply.github.com>
+Date:   Mon Sep 19 08:16:37 2022 +0200
+
+    Initial commit
+
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..28852d8
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,2 @@
++# Uek-Modul223_Co-Working
++Final Project for the Uek M223 Course

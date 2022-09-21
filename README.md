@@ -52,10 +52,16 @@ The application will start with the following users:
 * Peter Rutschmann (Admin) - login: peter.rutschmann@gmail.com - pw: test1234 
 * Johannes Höffliger (Member) - login: johannes.höffliger@gmail.com - pw: test1234
 
+The application will also start with 2 bookings. One of them specificly made for an integration test.
+
 
 
 <!-- USAGE EXAMPLES -->
 ## Important Information
+### Documents
+All relevant documents can be found in the root of the project.
+(dockercompose, git history, postman collection, etc.)
+
 ### Links
 * API Documentation: http://localhost:8080/swagger-ui/index.html
 

@@ -1,0 +1,434 @@
+{
+	"info": {
+		"_postman_id": "ff1c6a00-87bb-457c-8c86-27b837004506",
+		"name": "Co-working space",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "16157865"
+	},
+	"item": [
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "get all users",
+					"request": {
+						"method": "GET",
+						"header": []
+					},
+					"response": []
+				},
+				{
+					"name": "get user by id",
+					"request": {
+						"method": "GET",
+						"header": []
+					},
+					"response": []
+				},
+				{
+					"name": "add new user",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/user/create",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"user",
+								"create"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete user by id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/users/e1eec954-6ef4-4926-8183-7575af189f2a",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"users",
+								"e1eec954-6ef4-4926-8183-7575af189f2a"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "edit user by id",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyX2lkIjoiZTFlZWM5NTQtNmVmNC00OTI2LTgxODMtNzU3NWFmMTg5ZjJhIiwic2NvcGUiOlsiTUVNQkVSIl0sIm5hbWUiOiJqb2hhbm5lcy5ob2VmZmxpZ2VyQGdtYWlsLmNvbSIsInR5cCI6IkJlYXJlciIsImV4cCI6MTY2Mzc2NzE1MiwiaWF0IjoxNjYzNjgwNzUyLCJqdGkiOiJmZTNiNjNlYi04ZGQ3LTRjZmYtOGQwYi02Mzc3OWNkZjk5N2YifQ.52v_1Tfu8iDuSqcsbRf3_roo6veGsxJcc_zSkUHs-cHjs1TZiow3bHHjL4YYttjpMD5e6aVSNRMZoj4qmp4qTw",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "    {\n        \"name\": \"Peterrr\",\n        \"lastname\": \"Rutschmann\",\n        \"email\": \"peter.rutschmann@gmail.com\",\n        \"password\": \"test1234\",\n    }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/users/4be5f5bf-8eb5-44ea-8eb5-a5e807856d09",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"users",
+								"4be5f5bf-8eb5-44ea-8eb5-a5e807856d09"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Bookings",
+			"item": [
+				{
+					"name": "get all bookings",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyX2lkIjoiNGJlNWY1YmYtOGViNS00NGVhLThlYjUtYTVlODA3ODU2ZDA5Iiwic2NvcGUiOlsiQURNSU4iXSwibmFtZSI6InBldGVyLnJ1dHNjaG1hbm5AZ21haWwuY29tIiwidHlwIjoiQmVhcmVyIiwiZXhwIjoxNjYzNzYxNTcyLCJpYXQiOjE2NjM2NzUxNzIsImp0aSI6IjI4ODRmNDljLWViYTktNGQ4Yy04YWIwLWRhYjBlM2RjZThhZSJ9.i_vt00dqb9yIusgwYhd5b1sDIYFwLR8TdQmqLEFYO5JFsdnZ9Nm6lhZ6YSy_SPbHwQTxa_asNxAhnfjcNcIxAQ",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/bookings",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"bookings"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get booking by user id",
+					"request": {
+						"method": "GET",
+						"header": []
+					},
+					"response": []
+				},
+				{
+					"name": "get booking by status",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyX2lkIjoiNGJlNWY1YmYtOGViNS00NGVhLThlYjUtYTVlODA3ODU2ZDA5Iiwic2NvcGUiOlsiQURNSU4iXSwibmFtZSI6InBldGVyLnJ1dHNjaG1hbm5AZ21haWwuY29tIiwidHlwIjoiQmVhcmVyIiwiZXhwIjoxNjYzODI4OTQxLCJpYXQiOjE2NjM3NDI1NDEsImp0aSI6IjU4NmZlOTgxLWExZjUtNDc0ZC1hOThiLTE2ZGFjMGUyYzhiNSJ9.5p6wkAybWQMZh-C1gHJ7RIxQQrOsjNVsCdlLsLS9InuEIsk6d9ePDbq9Bqpx5Gg1hiPOS-lhdS6dlbVWfrkvxA",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/bookings?status=pending",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"bookings"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get booking by status and userid",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/bookings?status=pending&userid=4be5f5bf-8eb5-44ea-8eb5-a5e807856d09",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"bookings"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending"
+								},
+								{
+									"key": "userid",
+									"value": "4be5f5bf-8eb5-44ea-8eb5-a5e807856d09"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "create new Booking",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "    {\n        \"dayDuration\": 1.0,\n        \"date\": \"2022-09-23\"\n    }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/bookings",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"bookings"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update booking",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "    {\n        \"dayDuration\": 1.0,\n        \"date\": \"2022-09-23\",\n        \"status\": \"Pending\"\n    }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/bookings/413e2297-b84b-42ef-97ed-16a8a9d1d671",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"bookings",
+								"413e2297-b84b-42ef-97ed-16a8a9d1d671"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update bookingstatus",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyX2lkIjoiNGJlNWY1YmYtOGViNS00NGVhLThlYjUtYTVlODA3ODU2ZDA5Iiwic2NvcGUiOlsiQURNSU4iXSwibmFtZSI6InBldGVyLnJ1dHNjaG1hbm5AZ21haWwuY29tIiwidHlwIjoiQmVhcmVyIiwiZXhwIjoxNjYzODI4OTQxLCJpYXQiOjE2NjM3NDI1NDEsImp0aSI6IjU4NmZlOTgxLWExZjUtNDc0ZC1hOThiLTE2ZGFjMGUyYzhiNSJ9.5p6wkAybWQMZh-C1gHJ7RIxQQrOsjNVsCdlLsLS9InuEIsk6d9ePDbq9Bqpx5Gg1hiPOS-lhdS6dlbVWfrkvxA",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "    {\n        \"status\": \"PENDING\"\n    }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/bookings/status/413e2297-b84b-42ef-97ed-16a8a9d1d671",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"bookings",
+								"status",
+								"413e2297-b84b-42ef-97ed-16a8a9d1d671"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete booking by id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/bookings/413e2297-b84b-42ef-97ed-16a8a9d1d671",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"bookings",
+								"413e2297-b84b-42ef-97ed-16a8a9d1d671"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login Admin",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "    {\n        \"email\": \"ruedi.hoeffliger@gmail.com\",\n        \"password\": \"test1234\"\n    }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/auth/login",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login Member",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "    {\n        \"email\": \"johannes.hoeffliger@gmail.com\",\n        \"password\": \"test1234\"\n    }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/auth/login",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "    {\n        \"name\": \"Silvan\",\n        \"lastname\": \"Dubach\",\n        \"email\": \"silvan.dubach@gmail.com\",\n        \"password\": \"test1234\"\n    }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/auth/register",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
